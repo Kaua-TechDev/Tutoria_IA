@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Tutória{% endblock %}</title>
+
+    <!-- Tailwind via CDN — suficiente para o MVP, sem necessidade de build -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        base: {
+                            900: '#0f1117',
+                            800: '#171923',
+                            700: '#1f2230',
+                            600: '#2a2e3f',
+                        },
+                        accent: {
+                            500: '#7c5cff',
+                            400: '#9678ff',
+                        },
+                    },
+                },
+            },
+        };
+    </script>
+</head>
+<body class="bg-base-900 text-gray-100 min-h-screen flex flex-col">
+
+    <!-- Barra superior -->
+    <header class="bg-base-800 border-b border-base-600 px-6 py-3 flex items-center justify-between">
+        <a href="{{ url_for('chat.index') }}" class="flex items-center gap-2 font-semibold text-lg">
+            <span>🎓</span>
+            <span>Tutória</span>
+        </a>
+
+        {% if current_user.is_authenticated %}
+        <div class="flex items-center gap-4 text-sm">
+            <span class="text-gray-400">Olá, {{ current_user.nome }}</span>
+            <a href="{{ url_for('auth.logout') }}"
+               class="px-3 py-1.5 rounded-lg bg-base-700 hover:bg-base-600 transition text-gray-200">
+                Sair
+            </a>
+        </div>
+        {% endif %}
+    </header>
+
+    <!-- Mensagens flash -->
+    {% with mensagens = get_flashed_messages(with_categories=true) %}
+        {% if mensagens %}
+        <div class="px-6 pt-4">
+            {% for categoria, texto in mensagens %}
+            <div class="mb-2 px-4 py-2 rounded-lg text-sm
+                        {% if categoria == 'erro' %} bg-red-900/40 text-red-300 border border-red-700
+                        {% else %} bg-accent-500/10 text-accent-400 border border-accent-500/30 {% endif %}">
+                {{ texto }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endwith %}
+
+    <main class="flex-1 flex">
+        {% block content %}{% endblock %}
+    </main>
+
+</body>
+</html>
