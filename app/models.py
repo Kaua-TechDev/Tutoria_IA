@@ -63,10 +63,14 @@ class Aluno(UserMixin, db.Model):
 
     def check_senha(self, senha: str) -> bool:
         """Verifica se a senha fornecida bate com o hash armazenado."""
-        return bcrypt.checkpw(
-            senha.encode('utf-8'),
-            self.senha_hash.encode('utf-8')
-        )
+        try:
+            return bcrypt.checkpw(
+                senha.encode('utf-8'),
+                self.senha_hash.encode('utf-8')
+            )
+        except ValueError:
+            # Hash mal formado ou ainda como placeholder do seed
+            return False
 
     # ── Gamificação ─────────────────────────────────────────────────────
     @property
@@ -122,10 +126,14 @@ class Responsavel(UserMixin, db.Model):
         ).decode('utf-8')
 
     def check_senha(self, senha: str) -> bool:
-        return bcrypt.checkpw(
-            senha.encode('utf-8'),
-            self.senha_hash.encode('utf-8')
-        )
+        try:
+            return bcrypt.checkpw(
+                senha.encode('utf-8'),
+                self.senha_hash.encode('utf-8')
+            )
+        except ValueError:
+            # Hash mal formado ou ainda como placeholder do seed
+            return False
 
     def __repr__(self):
         return f'<Responsavel {self.email}>'
