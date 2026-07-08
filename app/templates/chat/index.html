@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Chat — Tutória{% endblock %}
+
+{% block content %}
+<div class="w-full flex">
+
+    <!-- Sidebar: trilhas do segmento do aluno -->
+    <aside class="w-64 bg-base-800 border-r border-base-600 p-4 hidden md:block">
+        <h2 class="text-xs uppercase tracking-wide text-gray-500 mb-3">
+            Trilhas de estudo
+        </h2>
+
+        <div class="space-y-1">
+            {% for trilha in trilhas %}
+            <button type="button"
+                    onclick="selecionarTrilha({{ trilha.id }}, '{{ trilha.disciplina }}')"
+                    class="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-300
+                           hover:bg-base-700 transition trilha-btn"
+                    data-trilha-id="{{ trilha.id }}">
+                {{ trilha.nome }}
+                <span class="block text-xs text-gray-500">{{ trilha.disciplina }}</span>
+            </button>
+            {% else %}
+            <p class="text-sm text-gray-500">Nenhuma trilha cadastrada ainda para o seu segmento.</p>
+            {% endfor %}
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-base-600 text-sm text-gray-400">
+            <p>XP: <span class="text-accent-400 font-medium">{{ aluno.pontos_xp }}</span></p>
+            <p>Nível: <span class="text-accent-400 font-medium">{{ aluno.nivel_nome }}</span></p>
+        </div>
+    </aside>
+
+    <!-- Área principal do chat -->
+    <section class="flex-1 flex flex-col p-6 max-w-3xl mx-auto w-full">
+
+        <div id="trilha-ativa" class="text-xs text-gray-500 mb-2 hidden"></div>
+
+        <!-- Histórico de mensagens da sessão atual (na tela, não persistido em JS) -->
+        <div id="mensagens" class="flex-1 space-y-4 overflow-y-auto mb-4 pr-1">
+            <div class="bg-base-800 border border-base-600 rounded-xl p-4 text-gray-300 text-sm">
+                Oi, {{ aluno.nome.split(' ')[0] }}! Escolha uma disciplina, digite sua dúvida
+                e eu te ajudo com uma explicação e um exercício prático. 🚀
+            </div>
+        </div>
+
+        <!-- Formulário de pergunta -->
+        <form id="form-pergunta" class="space-y-3">
+            <input type="hidden" id="trilha_id" name="trilha_id" value="">
+
+            <select id="disciplina" name="disciplina" required
+                    class="w-full bg-base-800 border border-base-600 rounded-lg px-4 py-2.5
+                           text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent-500">
+                <option value="">Selecione a disciplina...</option>
+                <option value="Matematica">Matemática</option>
+                <option value="Portugues">Português</option>
+                <option value="Programacao">Programação</option>
+                <option value="Ciencias">Ciências</option>
+                <option value="Historia">História</option>
+                <option value="Redacao">Redação</option>
+            </select>
+
+            <div class="flex gap-2">
+                <textarea id="pergunta" name="pergunta" rows="2" required
+                          placeholder="Digite sua pergunta..."
+                          class="flex-1 bg-base-800 border border-base-600 rounded-lg px-4 py-2.5
+                                 text-gray-100 placeholder-gray-500 resize-none
+                                 focus:outline-none focus:ring-2 focus:ring-accent-500"></textarea>
+
+                <button type="submit" id="btn-enviar"
+                        class="px-5 rounded-lg bg-accent-500 hover:bg-accent-400 transition
+                               font-medium text-white disabled:opacity-50">
+                    Enviar
+                </button>
+            </div>
+        </form>
+    </section>
+</div>
+
+<script>
+    function selecionarTrilha(id, disciplina) {
+        document.getElementById('trilha_id').value = id;
+        document.getElementById('disciplina').value = disciplina;
+
+        const aviso = document.getElementById('trilha-ativa');
+        aviso.textContent = 'Trilha selecionada — disciplina preenchida automaticamente';
+        aviso.classList.remove('hidden');
+
+        document.querySelectorAll('.trilha-btn').forEach(b => b.classList.remove('bg-base-700'));
+        document.querySelector(`[data-trilha-id="${id}"]`).classList.add('bg-base-700');
+    }
+
+    function bolhaMensagem(texto, autor) {
+        const div = document.createElement('div');
+        if (autor === 'aluno') {
+            div.className = 'bg-accent-500/15 border border-accent-500/30 rounded-xl p-4 text-sm text-gray-100 ml-8';
+        } else {
+            div.className = 'bg-base-800 border border-base-600 rounded-xl p-4 text-sm text-gray-300';
+        }
+        div.innerText = texto;
+        return div;
+    }
+
+    document.getElementById('form-pergunta').addEventListener('submit', async (evento) => {
+        evento.preventDefault();
+
+        const disciplina = document.getElementById('disciplina').value;
+        const pergunta = document.getElementById('pergunta').value.trim();
+        const trilhaId = document.getElementById('trilha_id').value || null;
+        const btn = document.getElementById('btn-enviar');
+        const mensagens = document.getElementById('mensagens');
+
+        if (!disciplina || !pergunta) return;
+
+        mensagens.appendChild(bolhaMensagem(pergunta, 'aluno'));
+        document.getElementById('pergunta').value = '';
+        btn.disabled = true;
+        btn.innerText = 'Pensando...';
+
+        try {
+            const resposta = await fetch("{{ url_for('chat.perguntar') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ disciplina, pergunta, trilha_id: trilhaId }),
+            });
+
+            const dados = await resposta.json();
+
+            if (!resposta.ok) {
+                mensagens.appendChild(bolhaMensagem(dados.erro || 'Erro ao processar a pergunta.', 'ia'));
+            } else if (dados.bloqueado) {
+                mensagens.appendChild(bolhaMensagem(dados.explicacao, 'ia'));
+            } else {
+                mensagens.appendChild(bolhaMensagem(dados.explicacao, 'ia'));
+                if (dados.sugestao_pratica) {
+                    mensagens.appendChild(bolhaMensagem('📝 Exercício: ' + dados.sugestao_pratica, 'ia'));
+                }
+            }
+        } catch (erro) {
+            mensagens.appendChild(bolhaMensagem('Não consegui falar com o servidor. Tente novamente.', 'ia'));
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'Enviar';
+            mensagens.scrollTop = mensagens.scrollHeight;
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Login — Tutória{% endblock %}
+
+{% block content %}
+<div class="w-full flex items-center justify-center py-16 px-4">
+    <div class="w-full max-w-md bg-base-800 border border-base-600 rounded-2xl p-8 shadow-xl">
+
+        <h1 class="text-2xl font-semibold mb-1 text-center">Entrar na Tutória</h1>
+        <p class="text-gray-400 text-sm text-center mb-6">Escolha como você quer entrar</p>
+
+        <!-- Abas -->
+        <div class="grid grid-cols-2 gap-2 mb-6 bg-base-700 p-1 rounded-xl">
+            <button type="button" id="tab-aluno"
+                    onclick="mudarAba('aluno')"
+                    class="py-2 rounded-lg text-sm font-medium transition">
+                Sou aluno
+            </button>
+            <button type="button" id="tab-responsavel"
+                    onclick="mudarAba('responsavel')"
+                    class="py-2 rounded-lg text-sm font-medium transition">
+                Sou responsável
+            </button>
+        </div>
+
+        <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-4">
+            <input type="hidden" name="tipo_login" id="tipo_login" value="{{ tipo_ativo }}">
+
+            <div>
+                <label id="label-identificador" class="block text-sm text-gray-300 mb-1">
+                    Matrícula
+                </label>
+                <input type="text" name="identificador" required
+                       placeholder="Ex.: 2026001"
+                       id="input-identificador"
+                       class="w-full bg-base-700 border border-base-600 rounded-lg px-4 py-2.5
+                              text-gray-100 placeholder-gray-500 focus:outline-none
+                              focus:ring-2 focus:ring-accent-500">
+            </div>
+
+            <div>
+                <label class="block text-sm text-gray-300 mb-1">Senha</label>
+                <input type="password" name="senha" required
+                       class="w-full bg-base-700 border border-base-600 rounded-lg px-4 py-2.5
+                              text-gray-100 focus:outline-none focus:ring-2 focus:ring-accent-500">
+            </div>
+
+            <button type="submit"
+                    class="w-full py-2.5 rounded-lg bg-accent-500 hover:bg-accent-400
+                           transition font-medium text-white">
+                Entrar
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function mudarAba(tipo) {
+        document.getElementById('tipo_login').value = tipo;
+
+        const abaAluno = document.getElementById('tab-aluno');
+        const abaResp  = document.getElementById('tab-responsavel');
+        const label    = document.getElementById('label-identificador');
+        const input    = document.getElementById('input-identificador');
+
+        const ativo   = 'bg-accent-500 text-white';
+        const inativo = 'text-gray-400';
+
+        if (tipo === 'aluno') {
+            abaAluno.className = 'py-2 rounded-lg text-sm font-medium transition ' + ativo;
+            abaResp.className  = 'py-2 rounded-lg text-sm font-medium transition ' + inativo;
+            label.textContent  = 'Matrícula';
+            input.placeholder  = 'Ex.: 2026001';
+        } else {
+            abaResp.className  = 'py-2 rounded-lg text-sm font-medium transition ' + ativo;
+            abaAluno.className = 'py-2 rounded-lg text-sm font-medium transition ' + inativo;
+            label.textContent  = 'E-mail';
+            input.placeholder  = 'seuemail@exemplo.com';
+        }
+    }
+
+    // Ativa a aba correta ao carregar a página (mantém a escolha após erro de login).
+    mudarAba('{{ tipo_ativo }}');
+</script>
+{% endblock %}

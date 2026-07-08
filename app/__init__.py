@@ -35,8 +35,11 @@ def create_app():
             return Responsavel.query.get(int(pk))
         return None
 
-    # ── Blueprints (serão registrados nas semanas seguintes) ─
-    # from .routes.auth import auth_bp
-    # app.register_blueprint(auth_bp)
+    # ── Blueprints ───────────────────────────────────────────
+    from .routes.auth import auth_bp
+    from .routes.chat import chat_bp
+
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(chat_bp)
 
     return app
