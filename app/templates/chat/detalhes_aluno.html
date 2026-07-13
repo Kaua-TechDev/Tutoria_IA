@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+{% block title %}{{ aluno.nome }} — Tutória{% endblock %}
+
+{% block content %}
+<div class="w-full max-w-7xl mx-auto px-6 py-8">
+    <a href="{{ url_for('chat.painel_responsavel') }}"
+       class="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-gray-100 transition mb-6">
+        ← Voltar ao painel
+    </a>
+
+    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5 mb-8">
+        <div>
+            <p class="text-sm text-accent-400 font-medium mb-1">Detalhes do aluno</p>
+            <h1 class="text-3xl font-semibold">{{ aluno.nome }}</h1>
+            <p class="text-gray-400 mt-2">
+                Matrícula {{ aluno.matricula }} · {{ aluno.segmento.replace('_', ' ') }}
+            </p>
+        </div>
+
+        <div class="bg-base-800 border border-base-600 rounded-2xl px-5 py-4 w-full lg:w-80">
+            <p class="text-xs uppercase tracking-wide text-gray-500">Progresso geral</p>
+
+            <div class="flex items-end justify-between mt-2">
+                <div>
+                    <p class="text-2xl font-semibold text-accent-400">{{ aluno.pontos_xp }} XP</p>
+                    <p class="text-sm text-gray-400">Nível {{ aluno.nivel }} — {{ aluno.nivel_nome }}</p>
+                </div>
+            </div>
+
+            <div class="w-full h-2.5 bg-base-900 rounded-full overflow-hidden mt-3">
+                <div class="barra-xp h-full bg-gradient-to-r from-accent-500 to-accent-400 rounded-full"
+                     style="width: {{ gamificacao.progresso_nivel }}%"></div>
+            </div>
+
+            <p class="text-xs text-gray-500 mt-2">
+                {% if gamificacao.xp_para_proximo > 0 %}
+                    Faltam {{ gamificacao.xp_para_proximo }} XP para o próximo nível
+                {% else %}
+                    Nível máximo alcançado
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Conquistas do aluno -->
+    <section class="bg-base-800 border border-base-600 rounded-2xl p-6 mb-8">
+        <div class="flex items-baseline justify-between mb-5">
+            <h2 class="text-xl font-semibold">Conquistas</h2>
+            <span class="text-sm text-gray-400">
+                {{ conquistas | selectattr('desbloqueada') | list | length }} de {{ conquistas | length }} desbloqueadas
+            </span>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+            {% for conquista in conquistas %}
+            <div class="rounded-xl border p-3 text-center transition
+                        {% if conquista.desbloqueada %}
+                        bg-accent-500/10 border-accent-500/40
+                        {% else %}
+                        bg-base-900 border-base-600 opacity-40
+                        {% endif %}"
+                 title="{{ conquista.descricao }}">
+                <p class="text-2xl {% if not conquista.desbloqueada %}grayscale{% endif %}">
+                    {{ conquista.emoji }}
+                </p>
+                <p class="text-xs font-medium mt-2 leading-tight">{{ conquista.nome }}</p>
+                {% if conquista.desbloqueada %}
+                <p class="text-xs text-accent-400 mt-1">
+                    {{ conquista.desbloqueado_em.strftime('%d/%m/%y') }}
+                </p>
+                {% else %}
+                <p class="text-xs text-gray-600 mt-1">bloqueada</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <article class="bg-base-800 border border-base-600 rounded-2xl p-5">
+            <p class="text-sm text-gray-400">Sessões</p>
+            <p class="text-3xl font-semibold mt-2">{{ estatisticas.total_sessoes }}</p>
+        </article>
+        <article class="bg-base-800 border border-base-600 rounded-2xl p-5">
+            <p class="text-sm text-gray-400">Trilhas iniciadas</p>
+            <p class="text-3xl font-semibold mt-2">{{ estatisticas.trilhas_iniciadas }}</p>
+        </article>
+        <article class="bg-base-800 border border-base-600 rounded-2xl p-5">
+            <p class="text-sm text-gray-400">Trilhas concluídas</p>
+            <p class="text-3xl font-semibold mt-2">{{ estatisticas.trilhas_concluidas }}</p>
+        </article>
+        <article class="bg-base-800 border border-base-600 rounded-2xl p-5">
+            <p class="text-sm text-gray-400">Alertas abertos</p>
+            <p class="text-3xl font-semibold mt-2">{{ estatisticas.alertas_abertos }}</p>
+        </article>
+    </section>
+
+    <section class="mb-10">
+        <div class="mb-4">
+            <h2 class="text-xl font-semibold">Trilhas de estudo</h2>
+            <p class="text-sm text-gray-400">
+                Para este MVP, cada cinco sessões vinculadas representam 100% da trilha.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {% for item in trilhas_progresso %}
+            <article class="bg-base-800 border border-base-600 rounded-2xl p-5">
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-gray-500">
+                            {{ item.trilha.disciplina }}
+                        </p>
+                        <h3 class="font-semibold text-lg mt-1">{{ item.trilha.nome }}</h3>
+                        {% if item.trilha.descricao %}
+                        <p class="text-sm text-gray-400 mt-2">{{ item.trilha.descricao }}</p>
+                        {% endif %}
+                    </div>
+
+                    {% if item.concluida %}
+                    <span class="px-3 py-1 rounded-full text-xs bg-green-500/10 text-green-300 border border-green-500/30">
+                        Concluída
+                    </span>
+                    {% endif %}
+                </div>
+
+                <div class="mt-5">
+                    <div class="flex justify-between text-sm mb-2">
+                        <span class="text-gray-400">Progresso</span>
+                        <span class="font-medium">{{ item.progresso }}%</span>
+                    </div>
+                    <div class="w-full h-2.5 bg-base-700 rounded-full overflow-hidden">
+                        <div class="h-full bg-accent-500 rounded-full"
+                             style="width: {{ item.progresso }}%"></div>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-400 mt-4">
+                    <span>{{ item.total_sessoes }} sessão(ões)</span>
+                    <span>{{ item.xp }} XP</span>
+                    <span>{{ item.ultima_sessao_formatada }}</span>
+                </div>
+            </article>
+            {% else %}
+            <div class="lg:col-span-2 bg-base-800 border border-base-600 rounded-2xl p-8 text-center text-gray-400">
+                Nenhuma trilha disponível para o segmento deste aluno.
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div class="xl:col-span-2">
+            <div class="mb-4">
+                <h2 class="text-xl font-semibold">Histórico de sessões</h2>
+                <p class="text-sm text-gray-400">
+                    Última atividade: {{ estatisticas.ultima_atividade_formatada }}
+                </p>
+            </div>
+
+            <div class="space-y-4">
+                {% for sessao in sessoes %}
+                <article class="bg-base-800 border border-base-600 rounded-2xl p-5">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                        <div>
+                            <p class="font-medium">{{ sessao.disciplina }}</p>
+                            <p class="text-xs text-gray-500">
+                                {{ sessao.criado_em.strftime('%d/%m/%Y às %H:%M') }}
+                                {% if sessao.trilha %} · {{ sessao.trilha.nome }}{% endif %}
+                            </p>
+                        </div>
+                        <span class="text-sm font-medium
+                                     {% if sessao.xp_ganho > 0 %}text-accent-400{% else %}text-gray-500{% endif %}">
+                            +{{ sessao.xp_ganho }} XP
+                        </span>
+                    </div>
+
+                    <div class="space-y-3 text-sm">
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-gray-500 mb-1">Pergunta</p>
+                            <p class="text-gray-200">{{ sessao.pergunta }}</p>
+                        </div>
+
+                        {% if sessao.resposta_ia %}
+                        <div>
+                            <p class="text-xs uppercase tracking-wide text-gray-500 mb-1">Resposta da Tutória</p>
+                            <p class="text-gray-300 whitespace-pre-line">{{ sessao.resposta_ia }}</p>
+                        </div>
+                        {% endif %}
+
+                        {% if sessao.sugestao_pratica %}
+                        <div class="bg-accent-500/10 border border-accent-500/20 rounded-xl p-3">
+                            <p class="text-xs uppercase tracking-wide text-accent-400 mb-1">Sugestão prática</p>
+                            <p class="text-gray-300">{{ sessao.sugestao_pratica }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </article>
+                {% else %}
+                <div class="bg-base-800 border border-base-600 rounded-2xl p-8 text-center text-gray-400">
+                    Este aluno ainda não realizou nenhuma sessão.
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <aside>
+            <div class="mb-4">
+                <h2 class="text-xl font-semibold">Alertas</h2>
+                <p class="text-sm text-gray-400">Dificuldades identificadas no acompanhamento.</p>
+            </div>
+
+            <div class="space-y-3">
+                {% for alerta in alertas %}
+                <article class="bg-base-800 border rounded-2xl p-4
+                                {% if alerta.resolvido %}border-base-600{% else %}border-amber-500/40{% endif %}">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <p class="font-medium">{{ alerta.assunto }}</p>
+                            <p class="text-sm text-gray-400 mt-1">
+                                {{ alerta.total_perguntas }} perguntas relacionadas
+                            </p>
+                        </div>
+                        <span class="text-xs px-2 py-1 rounded-full
+                                     {% if alerta.resolvido %}
+                                     bg-green-500/10 text-green-300
+                                     {% else %}
+                                     bg-amber-500/10 text-amber-300
+                                     {% endif %}">
+                            {{ 'Resolvido' if alerta.resolvido else 'Aberto' }}
+                        </span>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-3">
+                        Criado em {{ alerta.criado_em.strftime('%d/%m/%Y') }}
+                    </p>
+                </article>
+                {% else %}
+                <div class="bg-base-800 border border-base-600 rounded-2xl p-5 text-sm text-gray-400">
+                    Nenhum alerta registrado para este aluno.
+                </div>
+                {% endfor %}
+            </div>
+        </aside>
+    </section>
+</div>
+{% endblock %}

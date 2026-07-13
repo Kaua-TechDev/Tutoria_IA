@@ -13,9 +13,10 @@ Duas responsabilidades principais:
 
 import os
 import json
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+API_KEY = os.getenv('OPENAI_API_KEY', '').strip()
+client = OpenAI(api_key=API_KEY) if API_KEY else None
 
 MODEL = 'gpt-4o-mini'
 
@@ -112,10 +113,79 @@ FORMATO DE SAÍDA:
 Responda SEMPRE em JSON válido, com exatamente estas chaves:
 {{
   "bloqueado": false,
+  "assunto": "o tema da pergunta em 2 a 4 palavras, sempre o MESMO rótulo para dúvidas sobre o mesmo tema (ex.: 'Chaves estrangeiras', 'Equação do 2º grau')",
   "explicacao": "explicação da dúvida do aluno, adaptada ao perfil acima",
   "sugestao_pratica": "um exercício ou desafio curto para o aluno praticar"
 }}
 """
+
+
+# ══════════════════════════════════════════════════════════════════════
+# ASSUNTO — rótulo curto usado pelos alertas de dificuldade (Semana 5)
+# ══════════════════════════════════════════════════════════════════════
+# Palavras que não ajudam a identificar o tema e por isso são descartadas.
+_PALAVRAS_VAZIAS = {
+    'a', 'ao', 'aos', 'as', 'com', 'como', 'da', 'das', 'de', 'do', 'dos',
+    'e', 'em', 'entre', 'era', 'essa', 'esse', 'esta', 'este', 'eu', 'é',
+    'faz', 'fazer', 'foi', 'funciona', 'na', 'nas', 'no', 'nos', 'o', 'os',
+    'ou', 'para', 'por', 'pra', 'qual', 'quais', 'quando', 'que', 'quem',
+    'se', 'ser', 'seu', 'sua', 'sobre', 'são', 'tem', 'um', 'uma', 'usar',
+    'me', 'mim', 'meu', 'minha', 'explica', 'explique', 'entendi', 'não',
+    'nao', 'porque', 'por que', 'diferença', 'diferenca', 'significa',
+}
+
+
+def _assunto_local(pergunta: str, disciplina: str) -> str:
+    """Deduz o tema da pergunta sem chamar a IA.
+
+    Usado no modo de demonstração e quando a IA não devolve o campo "assunto".
+    Guarda as palavras mais significativas da pergunta: duas dúvidas sobre o
+    mesmo tema precisam gerar o mesmo rótulo, senão o alerta de dificuldade
+    não consegue agrupá-las.
+    """
+    palavras = [
+        palavra.strip('?!.,;:()[]"\'')
+        for palavra in pergunta.lower().split()
+    ]
+
+    relevantes = [
+        palavra for palavra in palavras
+        if len(palavra) > 2 and palavra not in _PALAVRAS_VAZIAS
+    ]
+
+    if not relevantes:
+        return disciplina or 'Geral'
+
+    return ' '.join(relevantes[:3]).capitalize()
+
+
+def _resposta_local(pergunta: str, disciplina: str, offline: bool = False) -> dict:
+    """Resposta gerada sem a OpenAI.
+
+    Cobre os dois casos em que a IA não está disponível: sem chave configurada
+    e falha na chamada à API (internet caída, chave vencida).
+    """
+    if offline:
+        aviso = (
+            'Não consegui falar com a IA agora (sem internet ou chave inválida), '
+            f'mas registrei sua dúvida de {disciplina} e você ganhou seu XP.'
+        )
+    else:
+        aviso = (
+            f'No modo de demonstração, a Tutória registrou sua dúvida de '
+            f'{disciplina}. Para receber uma explicação gerada por IA, '
+            'preencha OPENAI_API_KEY no arquivo .env.'
+        )
+
+    return {
+        'bloqueado': False,
+        'assunto': _assunto_local(pergunta, disciplina),
+        'explicacao': aviso,
+        'sugestao_pratica': (
+            'Revise suas anotações sobre o tema e escreva, com suas palavras, '
+            'o que você já compreendeu e qual parte ainda causa dúvida.'
+        ),
+    }
 
 
 def responder_pergunta(disciplina: str, pergunta: str, segmento: str) -> dict:
@@ -125,6 +195,7 @@ def responder_pergunta(disciplina: str, pergunta: str, segmento: str) -> dict:
     Retorna sempre um dicionário com as chaves:
       - explicacao (str)
       - sugestao_pratica (str)
+      - assunto (str)  -> tema curto, usado nos alertas de dificuldade
       - bloqueado (bool) -> True se o guardrail agiu
     """
     # 1) Guardrail rápido por palavra-chave (não gasta tokens, é instantâneo
@@ -132,21 +203,33 @@ def responder_pergunta(disciplina: str, pergunta: str, segmento: str) -> dict:
     if not _passa_guardrail(pergunta):
         return {
             'bloqueado': True,
+            'assunto': '',
             'explicacao': MENSAGEM_GUARDRAIL,
             'sugestao_pratica': '',
         }
 
-    # 2) Guardrail "fino", feito pela própria IA via prompt de sistema —
+    # 2) Modo local de demonstração: permite testar o projeto sem chave da
+    #    OpenAI. Quando OPENAI_API_KEY estiver preenchida, a API é usada.
+    if client is None:
+        return _resposta_local(pergunta, disciplina)
+
+    # 3) Guardrail "fino", feito pela própria IA via prompt de sistema —
     #    cobre casos que a lista de palavras-chave não previu.
-    resposta = client.chat.completions.create(
-        model=MODEL,
-        response_format={'type': 'json_object'},
-        messages=[
-            {'role': 'system', 'content': _prompt_sistema(disciplina, segmento)},
-            {'role': 'user', 'content': pergunta},
-        ],
-        temperature=0.5,
-    )
+    #
+    #    Internet fora do ar ou chave inválida caem no modo local, em vez de
+    #    derrubar a requisição: a pergunta segue registrada e valendo XP.
+    try:
+        resposta = client.chat.completions.create(
+            model=MODEL,
+            response_format={'type': 'json_object'},
+            messages=[
+                {'role': 'system', 'content': _prompt_sistema(disciplina, segmento)},
+                {'role': 'user', 'content': pergunta},
+            ],
+            temperature=0.5,
+        )
+    except OpenAIError:
+        return _resposta_local(pergunta, disciplina, offline=True)
 
     conteudo = resposta.choices[0].message.content
 
@@ -157,12 +240,22 @@ def responder_pergunta(disciplina: str, pergunta: str, segmento: str) -> dict:
         # o front-end quebrar — devolvemos um erro amigável.
         return {
             'bloqueado': False,
+            'assunto': _assunto_local(pergunta, disciplina),
             'explicacao': 'Não consegui processar essa resposta agora. Tente reformular a pergunta.',
             'sugestao_pratica': '',
         }
 
+    bloqueado = dados.get('bloqueado', False)
+
+    # Sem assunto não há como agrupar as perguntas repetidas, então caímos na
+    # dedução local quando a IA esquece o campo.
+    assunto = str(dados.get('assunto') or '').strip()
+    if not assunto and not bloqueado:
+        assunto = _assunto_local(pergunta, disciplina)
+
     return {
-        'bloqueado': dados.get('bloqueado', False),
+        'bloqueado': bloqueado,
+        'assunto': '' if bloqueado else assunto,
         'explicacao': dados.get('explicacao', ''),
         'sugestao_pratica': dados.get('sugestao_pratica', ''),
     }

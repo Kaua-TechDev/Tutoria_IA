@@ -1,103 +1,195 @@
-# Tutoria
+# Tutória
 
-Tutor de trilhas de estudo com IA — projeto da disciplina Introdução à Inteligência Artificial, Curso Técnico em Informática.
+Tutor de trilhas de estudo com IA — projeto da disciplina Introdução à Inteligência
+Artificial, Curso Técnico em Informática.
 
-Stack: Python · Flask · MySQL · OpenAI
+Stack: Python · Flask · SQLAlchemy · SQLite (ou MySQL) · OpenAI · Chart.js
 
 ## Integrantes
 
 - Kauã
 - Antônio
-- José
 - Thainá
 - Samuel
 
 ## Entregas
 
-| Semana | Data       | Entrega                              | Status         |
-|--------|------------|--------------------------------------|----------------|
-| S1     | 01/06/2026 | Banco de dados — schema MySQL        | Entregue       |
-| S2     | 08/06/2026 | Estrutura Flask + SQLAlchemy         | Em andamento   |
-| S3     | 15/06/2026 | MVP — autenticacao + chat com IA     | Entregue       |
-| S4     | 22/06/2026 | Trilhas e painel do responsavel      | Aguardando     |
-| S5     | 29/06/2026 | Gamificacao + dashboard              | Entrega final  |
+| Semana | Data       | Entrega                              | Status    |
+|--------|------------|--------------------------------------|-----------|
+| S1     | 01/06/2026 | Banco de dados — schema MySQL        | Entregue  |
+| S2     | 08/06/2026 | Estrutura Flask + SQLAlchemy         | Entregue  |
+| S3     | 15/06/2026 | MVP — autenticação + chat com IA     | Entregue  |
+| S4     | 22/06/2026 | Trilhas e painel do responsável      | Entregue  |
+| S5     | 29/06/2026 | Gamificação + dashboard              | Entregue  |
+
+## Como rodar
+
+Requisito: Python 3.10 ou superior. **Não precisa instalar MySQL** — o projeto
+usa SQLite por padrão e cria o banco sozinho.
+
+### Windows (jeito mais rápido)
+
+```powershell
+.\iniciar_windows.bat
+```
+
+O script cria o ambiente virtual, instala as dependências, gera o `.env`, cria o
+banco de demonstração e sobe o servidor.
+
+### Manual (qualquer sistema)
+
+```bash
+python -m venv venv
+venv\Scripts\activate          # Linux/Mac: source venv/bin/activate
+
+pip install -r requirements.txt
+copy .env.example .env         # Linux/Mac: cp .env.example .env
+
+python db/inicializar_sqlite.py
+python run.py
+```
+
+Acesse **http://localhost:5000**.
+
+### Logins de teste
+
+| Perfil       | Login                   | Senha      |
+|--------------|-------------------------|------------|
+| Aluno        | `2026001` (matrícula)   | `teste123` |
+| Responsável  | `maria.lima@email.com`  | `teste123` |
+
+Para recriar o banco do zero: `python db/inicializar_sqlite.py --reset`
+
+## Variáveis de ambiente
+
+O `.env` **não vai para o GitHub** (está no `.gitignore`). Copie o `.env.example`
+e preencha:
+
+| Variável         | Para que serve                                                  |
+|------------------|-----------------------------------------------------------------|
+| `OPENAI_API_KEY` | Chave da OpenAI. **Em branco = modo de demonstração**, sem IA.   |
+| `SECRET_KEY`     | Chave de sessão do Flask.                                        |
+| `DATABASE_URL`   | Em branco = SQLite. Para MySQL, veja abaixo.                     |
+
+O chat **nunca derruba a aplicação**: se a chave estiver vazia, inválida ou a
+internet cair, ele responde em modo local e continua registrando a pergunta e
+concedendo XP.
+
+### Usando MySQL em vez de SQLite
+
+```bash
+pip install PyMySQL
+```
+
+E no `.env`:
+
+```
+DATABASE_URL=mysql+pymysql://root:senha@localhost/tutor_trilhas
+```
+
+Depois rode `db/schema.sql` e `db/seed.sql` no MySQL.
 
 ## Estrutura
 
 ```
 tutoria/
+├── app/
+│   ├── __init__.py        -- app factory, escolhe SQLite ou MySQL
+│   ├── models.py          -- 8 tabelas + regras de XP e nível
+│   ├── ia_service.py      -- OpenAI, guardrails e perfis por segmento
+│   ├── gamificacao.py     -- XP, conquistas e alertas (Semana 5)
+│   ├── routes/
+│   │   ├── auth.py        -- login e logout
+│   │   └── chat.py        -- chat, painel, detalhes e dashboard
+│   ├── static/js/         -- Chart.js local (funciona sem internet)
+│   └── templates/
 ├── db/
-│   ├── schema.sql   -- cria o banco e as tabelas
-│   └── seed.sql     -- dados iniciais e registros de teste
-├── app/             -- criado na semana 2
+│   ├── schema.sql         -- MySQL (Semana 1)
+│   ├── seed.sql           -- MySQL (Semana 1)
+│   └── inicializar_sqlite.py  -- cria e popula o SQLite
 ├── .env.example
-├── .gitignore
-└── README.md
+└── run.py
 ```
 
-## Como rodar o banco
+## As funcionalidades
 
-Requisito: MySQL instalado e rodando.
+### Autenticação e chat com IA (Semana 3)
 
-```bash
-mysql -u root -p
+Aluno entra com matrícula, responsável com e-mail. A IA adapta a explicação ao
+segmento do aluno (do Fundamental I ao Técnico) e devolve sempre uma explicação
+mais um exercício prático.
 
-source db/schema.sql
-source db/seed.sql
+**Guardrails:** perguntas sobre mensalidade, boletos ou tentativas de burlar as
+instruções são recusadas — e **não valem XP**.
 
-USE tutor_trilhas;
-SHOW TABLES;
-SELECT COUNT(*) FROM conquistas;  -- 8
-SELECT COUNT(*) FROM trilhas;     -- 8
-```
+### Trilhas e painel do responsável (Semana 4)
 
-## Variaveis de ambiente
+O responsável vê só os alunos vinculados a ele (acessar outro aluno devolve 403),
+com progresso por trilha, histórico de sessões e alertas.
 
-Crie um arquivo `.env` na raiz (nao suba para o GitHub):
+### Gamificação e dashboard (Semana 5)
 
-```
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=sua_senha
-DB_NAME=tutor_trilhas
-OPENAI_API_KEY=sk-...
-SECRET_KEY=chave_secreta_flask
-```
+**XP e níveis.** Cada pergunta respondida vale 10 XP. São cinco níveis —
+Iniciante, Aprendiz, Intermediário, Avançado e Mestre — e a barra de progresso
+anima na tela a cada ponto ganho.
 
-## Criterios de aceite — Semana 1
+**Conquistas.** As 8 medalhas do banco desbloqueiam sozinhas, avaliadas por
+`app/gamificacao.py` a cada pergunta:
 
-- [ ] `SHOW TABLES` retorna as 8 tabelas
-- [ ] `DESCRIBE alunos` mostra `senha_hash VARCHAR(255)` e `segmento ENUM`
-- [ ] INSERT com `aluno_id` inexistente em `sessoes` gera erro de FK
-- [ ] `SELECT COUNT(*) FROM conquistas` retorna 8
-- [ ] `SELECT COUNT(*) FROM trilhas` retorna 8
-- [ ] DER entregue
+| Conquista | Critério | Bônus |
+|-----------|----------|-------|
+| 🎯 Primeira Pergunta | 1ª sessão | +20 XP |
+| 🏃 Maratonista | 10 sessões | +50 XP |
+| 🗺️ Explorador | 5 trilhas diferentes | +40 XP |
+| ⭐ Avaliador | avaliar 5 respostas | +15 XP |
+| 🔥 Persistente | 3 dias seguidos | +30 XP |
+| 💪 Dedicado | 500 XP | +60 XP |
+| 👑 Mestre do Conhecimento | 1000 XP | +100 XP |
+| 🏅 Trilheiro | completar uma trilha | +45 XP |
 
-## Como rodar o servidor (Semana 3 em diante)
+Ao desbloquear, uma notificação aparece na tela e a medalha acende na barra
+lateral, sem recarregar a página. O bônus de uma conquista pode desbloquear a
+seguinte na mesma jogada.
 
-```bash
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
+**Alertas de dificuldade.** A IA rotula o assunto de cada pergunta. Quando o aluno
+faz **3 perguntas sobre o mesmo assunto**, um alerta é aberto automaticamente e
+passa a aparecer no painel e no dashboard do responsável.
 
-# preencha o .env com DB_*, OPENAI_API_KEY e SECRET_KEY
-python run.py
-```
+**Dashboard gerencial.** Quatro gráficos em Chart.js:
 
-Acesse http://localhost:5000 — sem login, deve redirecionar para `/auth/login`.
+1. **Engajamento** — perguntas por dia nos últimos 14 dias
+2. **Disciplinas mais procuradas** — onde a turma mais tem dúvida
+3. **Distribuição por nível** — quantos alunos em cada faixa de XP
+4. **Ranking de XP** — os cinco alunos com mais pontos
 
-Login de teste (dados do seed.sql, senha real é o placeholder — troque
-depois com `set_senha()` no `flask shell` se quiser logar de verdade):
+O Chart.js é servido da pasta `app/static/js/`, então **os gráficos funcionam sem
+internet** — a apresentação não depende do wi-fi da escola.
 
-```
-Matricula: 2026001  (Ana Lima — TECNICO)
-```
+## Critérios de aceite
 
-## Criterios de aceite — Semana 3
+### Semana 1
+- [x] `SHOW TABLES` retorna as 8 tabelas
+- [x] `SELECT COUNT(*) FROM conquistas` retorna 8
+- [x] `SELECT COUNT(*) FROM trilhas` retorna 8
+- [x] DER entregue
 
-- [ ] Login com matricula/senha valida redireciona para `/`
-- [ ] Acesso a `/` sem login redireciona para `/auth/login`
-- [ ] `POST /chat/perguntar` retorna JSON com `explicacao` e `sugestao_pratica`
-- [ ] Pergunta sobre "mensalidades" ativa o guardrail — IA recusa e redireciona
-- [ ] Pergunta academica com segmento TECNICO retorna resposta tecnica sem codigo pronto
-- [ ] Sessao e salva na tabela `sessoes` do MySQL apos cada pergunta
+### Semana 3
+- [x] Login com matrícula válida redireciona para `/`
+- [x] Acesso a `/` sem login redireciona para `/auth/login`
+- [x] `POST /chat/perguntar` retorna JSON com `explicacao` e `sugestao_pratica`
+- [x] Pergunta sobre "mensalidades" ativa o guardrail e não concede XP
+- [x] Sessão é salva no banco após cada pergunta
+
+### Semana 4
+- [x] Responsável vê apenas os alunos vinculados a ele
+- [x] Acessar um aluno não vinculado retorna 403
+- [x] Detalhes do aluno mostram XP, nível, trilhas, sessões e alertas
+
+### Semana 5
+- [x] Cada pergunta respondida concede 10 XP e anima a barra de progresso
+- [x] Subir de nível dispara notificação na tela
+- [x] As 8 conquistas desbloqueiam sozinhas pelos critérios do banco
+- [x] Conquista desbloqueada mostra notificação e acende a medalha
+- [x] 3 perguntas no mesmo assunto abrem um alerta automático
+- [x] O alerta aparece no painel e no dashboard do responsável
+- [x] O dashboard mostra os 4 gráficos em Chart.js

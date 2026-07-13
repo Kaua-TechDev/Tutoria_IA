@@ -4,8 +4,43 @@
 {% block content %}
 <div class="w-full flex">
 
-    <!-- Sidebar: trilhas do segmento do aluno -->
-    <aside class="w-64 bg-base-800 border-r border-base-600 p-4 hidden md:block">
+    <!-- Sidebar: trilhas, XP e conquistas -->
+    <aside class="w-72 bg-base-800 border-r border-base-600 p-4 hidden md:block overflow-y-auto">
+
+        <!-- ── Gamificação: barra de XP animada ─────────────────────────── -->
+        <section id="painel-xp" class="bg-base-700 rounded-2xl p-4 mb-6">
+            <div class="flex items-center justify-between mb-1">
+                <span class="text-xs uppercase tracking-wide text-gray-400">Nível</span>
+                <span id="xp-nivel-num" class="text-xs text-gray-500">
+                    Nv. {{ gamificacao.nivel }}
+                </span>
+            </div>
+
+            <p id="xp-nivel-nome" class="text-lg font-semibold text-accent-400">
+                {{ gamificacao.nivel_nome }}
+            </p>
+
+            <div class="w-full h-2.5 bg-base-900 rounded-full overflow-hidden mt-3">
+                <div id="xp-barra"
+                     class="barra-xp h-full bg-gradient-to-r from-accent-500 to-accent-400 rounded-full"
+                     style="width: {{ gamificacao.progresso_nivel }}%"></div>
+            </div>
+
+            <div class="flex items-center justify-between mt-2 text-xs">
+                <span id="xp-total" class="text-gray-300 font-medium">
+                    {{ gamificacao.xp_total }} XP
+                </span>
+                <span id="xp-faltando" class="text-gray-500">
+                    {% if gamificacao.xp_para_proximo > 0 %}
+                        faltam {{ gamificacao.xp_para_proximo }}
+                    {% else %}
+                        nível máximo
+                    {% endif %}
+                </span>
+            </div>
+        </section>
+
+        <!-- ── Trilhas do segmento ──────────────────────────────────────── -->
         <h2 class="text-xs uppercase tracking-wide text-gray-500 mb-3">
             Trilhas de estudo
         </h2>
@@ -25,9 +60,28 @@
             {% endfor %}
         </div>
 
-        <div class="mt-6 pt-4 border-t border-base-600 text-sm text-gray-400">
-            <p>XP: <span class="text-accent-400 font-medium">{{ aluno.pontos_xp }}</span></p>
-            <p>Nível: <span class="text-accent-400 font-medium">{{ aluno.nivel_nome }}</span></p>
+        <!-- ── Conquistas ───────────────────────────────────────────────── -->
+        <h2 class="text-xs uppercase tracking-wide text-gray-500 mt-6 mb-3">
+            Conquistas
+            <span id="conquistas-contador" class="text-gray-600">
+                ({{ conquistas | selectattr('desbloqueada') | list | length }}/{{ conquistas | length }})
+            </span>
+        </h2>
+
+        <div id="grade-conquistas" class="grid grid-cols-4 gap-2">
+            {% for conquista in conquistas %}
+            <div class="conquista aspect-square rounded-xl flex items-center justify-center text-xl
+                        border transition cursor-default
+                        {% if conquista.desbloqueada %}
+                        bg-accent-500/10 border-accent-500/40
+                        {% else %}
+                        bg-base-900 border-base-600 grayscale opacity-30
+                        {% endif %}"
+                 data-conquista="{{ conquista.nome }}"
+                 title="{{ conquista.nome }} — {{ conquista.descricao }}{% if not conquista.desbloqueada %} (bloqueada){% endif %}">
+                {{ conquista.emoji }}
+            </div>
+            {% endfor %}
         </div>
     </aside>
 
@@ -36,11 +90,12 @@
 
         <div id="trilha-ativa" class="text-xs text-gray-500 mb-2 hidden"></div>
 
-        <!-- Histórico de mensagens da sessão atual (na tela, não persistido em JS) -->
+        <!-- Histórico de mensagens da sessão atual -->
         <div id="mensagens" class="flex-1 space-y-4 overflow-y-auto mb-4 pr-1">
             <div class="bg-base-800 border border-base-600 rounded-xl p-4 text-gray-300 text-sm">
                 Oi, {{ aluno.nome.split(' ')[0] }}! Escolha uma disciplina, digite sua dúvida
-                e eu te ajudo com uma explicação e um exercício prático. 🚀
+                e eu te ajudo com uma explicação e um exercício prático.
+                Cada pergunta respondida vale <span class="text-accent-400 font-medium">+10 XP</span>. 🚀
             </div>
         </div>
 
@@ -76,7 +131,10 @@
         </form>
     </section>
 </div>
+{% endblock %}
 
+
+{% block scripts %}
 <script>
     function selecionarTrilha(id, disciplina) {
         document.getElementById('trilha_id').value = id;
@@ -99,6 +157,91 @@
         }
         div.innerText = texto;
         return div;
+    }
+
+    // Redesenha a barra de XP. A animação vem da classe .barra-xp:
+    // basta mudar a largura que ela transiciona sozinha.
+    function atualizarPainelXp(dados) {
+        document.getElementById('xp-barra').style.width = `${dados.progresso_nivel}%`;
+        document.getElementById('xp-total').textContent = `${dados.xp_total} XP`;
+        document.getElementById('xp-nivel-nome').textContent = dados.nivel_nome;
+        document.getElementById('xp-nivel-num').textContent = `Nv. ${dados.nivel}`;
+        document.getElementById('xp-faltando').textContent =
+            dados.xp_para_proximo > 0 ? `faltam ${dados.xp_para_proximo}` : 'nível máximo';
+    }
+
+    // Acende a medalha na grade lateral, sem recarregar a página.
+    function acenderConquista(nome) {
+        const brasao = document.querySelector(`[data-conquista="${CSS.escape(nome)}"]`);
+        if (!brasao) return;
+
+        brasao.classList.remove('grayscale', 'opacity-30', 'bg-base-900', 'border-base-600');
+        brasao.classList.add('bg-accent-500/10', 'border-accent-500/40', 'pulsando');
+
+        const contador = document.getElementById('conquistas-contador');
+        const total = document.querySelectorAll('.conquista').length;
+        const abertas = document.querySelectorAll('.conquista:not(.grayscale)').length;
+        contador.textContent = `(${abertas}/${total})`;
+    }
+
+    // Estrelas de 1 a 5 abaixo da resposta. Alimentam a conquista "Avaliador".
+    function blocoAvaliacao(sessaoId) {
+        const bloco = document.createElement('div');
+        bloco.className = 'flex items-center gap-2 text-sm text-gray-500 pl-1';
+
+        const rotulo = document.createElement('span');
+        rotulo.className = 'text-xs';
+        rotulo.textContent = 'Essa resposta te ajudou?';
+        bloco.appendChild(rotulo);
+
+        for (let nota = 1; nota <= 5; nota++) {
+            const estrela = document.createElement('button');
+            estrela.type = 'button';
+            estrela.className = 'text-lg opacity-40 hover:opacity-100 hover:scale-110 transition';
+            estrela.textContent = '⭐';
+            estrela.title = `${nota} de 5`;
+
+            estrela.addEventListener('click', async () => {
+                const estrelas = bloco.querySelectorAll('button');
+                estrelas.forEach((e, i) => {
+                    e.style.opacity = i < nota ? '1' : '0.2';
+                    e.disabled = true;
+                });
+                rotulo.textContent = 'Obrigada pelo retorno!';
+
+                try {
+                    const resposta = await fetch("{{ url_for('chat.avaliar') }}", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sessao_id: sessaoId, nota }),
+                    });
+
+                    const dados = await resposta.json();
+                    if (!resposta.ok) return;
+
+                    atualizarPainelXp(dados);
+                    (dados.conquistas || []).forEach(anunciarConquista);
+                } catch (erro) {
+                    // A avaliação é um extra: se falhar, o chat continua funcionando.
+                }
+            });
+
+            bloco.appendChild(estrela);
+        }
+
+        return bloco;
+    }
+
+    function anunciarConquista(conquista) {
+        mostrarToast({
+            emoji: conquista.emoji,
+            titulo: `Conquista desbloqueada: ${conquista.nome}`,
+            texto: conquista.xp_bonus
+                ? `${conquista.descricao} (+${conquista.xp_bonus} XP de bônus)`
+                : conquista.descricao,
+            destaque: 'verde',
+        });
+        acenderConquista(conquista.nome);
     }
 
     document.getElementById('form-pergunta').addEventListener('submit', async (evento) => {
@@ -129,11 +272,50 @@
             if (!resposta.ok) {
                 mensagens.appendChild(bolhaMensagem(dados.erro || 'Erro ao processar a pergunta.', 'ia'));
             } else if (dados.bloqueado) {
+                // Guardrail: a pergunta entra no histórico, mas não vale XP.
                 mensagens.appendChild(bolhaMensagem(dados.explicacao, 'ia'));
+                mostrarToast({
+                    emoji: '🚫',
+                    titulo: 'Pergunta fora do conteúdo',
+                    texto: 'Essa pergunta não vale XP. Mande uma dúvida da disciplina!',
+                    destaque: 'ambar',
+                });
             } else {
                 mensagens.appendChild(bolhaMensagem(dados.explicacao, 'ia'));
+
                 if (dados.sugestao_pratica) {
                     mensagens.appendChild(bolhaMensagem('📝 Exercício: ' + dados.sugestao_pratica, 'ia'));
+                }
+
+                mensagens.appendChild(blocoAvaliacao(dados.sessao_id));
+
+                atualizarPainelXp(dados);
+
+                mostrarToast({
+                    emoji: '⚡',
+                    titulo: `+${dados.xp_ganho} XP`,
+                    texto: dados.assunto ? `Assunto registrado: ${dados.assunto}` : '',
+                });
+
+                if (dados.subiu_de_nivel) {
+                    document.getElementById('painel-xp').classList.add('pulsando');
+                    mostrarToast({
+                        emoji: '🎉',
+                        titulo: `Você subiu para o nível ${dados.nivel}!`,
+                        texto: `Agora você é ${dados.nivel_nome}.`,
+                        destaque: 'verde',
+                    });
+                }
+
+                (dados.conquistas || []).forEach(anunciarConquista);
+
+                if (dados.alerta) {
+                    mostrarToast({
+                        emoji: '📌',
+                        titulo: 'Percebi que esse tema está difícil',
+                        texto: `Avisei seu responsável sobre "${dados.alerta.assunto}". Vamos com calma!`,
+                        destaque: 'ambar',
+                    });
                 }
             }
         } catch (erro) {

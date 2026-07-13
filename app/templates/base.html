@@ -28,15 +28,67 @@
             },
         };
     </script>
+
+    <style>
+        /* A barra de XP anima sozinha sempre que a largura muda. */
+        .barra-xp {
+            transition: width 900ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        @keyframes entrada-toast {
+            from { opacity: 0; transform: translateX(24px) scale(0.96); }
+            to   { opacity: 1; transform: translateX(0)    scale(1); }
+        }
+
+        @keyframes saida-toast {
+            to { opacity: 0; transform: translateX(24px) scale(0.96); }
+        }
+
+        .toast          { animation: entrada-toast 320ms ease-out; }
+        .toast-saindo   { animation: saida-toast 280ms ease-in forwards; }
+
+        /* Pulso usado quando o aluno sobe de nível ou ganha uma conquista. */
+        @keyframes brilho {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(124, 92, 255, 0.5); }
+            50%      { box-shadow: 0 0 0 10px rgba(124, 92, 255, 0); }
+        }
+
+        .pulsando { animation: brilho 1.4s ease-out 2; }
+    </style>
 </head>
 <body class="bg-base-900 text-gray-100 min-h-screen flex flex-col">
 
     <!-- Barra superior -->
     <header class="bg-base-800 border-b border-base-600 px-6 py-3 flex items-center justify-between">
-        <a href="{{ url_for('chat.index') }}" class="flex items-center gap-2 font-semibold text-lg">
-            <span>🎓</span>
-            <span>Tutória</span>
-        </a>
+        <div class="flex items-center gap-6">
+            <a href="{{ url_for('chat.index') }}" class="flex items-center gap-2 font-semibold text-lg">
+                <span>🎓</span>
+                <span>Tutória</span>
+            </a>
+
+            {% if current_user.is_authenticated and current_user.get_id().startswith('r-') %}
+            <nav class="hidden sm:flex items-center gap-1 text-sm">
+                <a href="{{ url_for('chat.painel_responsavel') }}"
+                   class="px-3 py-1.5 rounded-lg transition
+                          {% if request.endpoint in ['chat.painel_responsavel', 'chat.detalhes_aluno'] %}
+                          bg-base-700 text-gray-100
+                          {% else %}
+                          text-gray-400 hover:text-gray-100 hover:bg-base-700
+                          {% endif %}">
+                    Painel
+                </a>
+                <a href="{{ url_for('chat.dashboard') }}"
+                   class="px-3 py-1.5 rounded-lg transition
+                          {% if request.endpoint == 'chat.dashboard' %}
+                          bg-base-700 text-gray-100
+                          {% else %}
+                          text-gray-400 hover:text-gray-100 hover:bg-base-700
+                          {% endif %}">
+                    Dashboard
+                </a>
+            </nav>
+            {% endif %}
+        </div>
 
         {% if current_user.is_authenticated %}
         <div class="flex items-center gap-4 text-sm">
@@ -68,5 +120,57 @@
         {% block content %}{% endblock %}
     </main>
 
+    <!-- Pilha de notificações: conquistas, subida de nível e alertas -->
+    <div id="toasts" class="fixed top-5 right-5 z-50 w-80 space-y-3"></div>
+
+    <script>
+        // Notificação de canto: XP ganho, subida de nível, conquista e alerta.
+        function mostrarToast({ emoji = '✨', titulo, texto = '', destaque = 'accent' }) {
+            const cores = {
+                accent: 'border-accent-500/50 bg-accent-500/10',
+                verde:  'border-green-500/50 bg-green-500/10',
+                ambar:  'border-amber-500/50 bg-amber-500/10',
+            };
+
+            const toast = document.createElement('div');
+            toast.className = `toast rounded-2xl border p-4 backdrop-blur
+                               shadow-lg shadow-black/40 ${cores[destaque] || cores.accent}`;
+
+            const cabecalho = document.createElement('div');
+            cabecalho.className = 'flex items-start gap-3';
+
+            const icone = document.createElement('span');
+            icone.className = 'text-2xl leading-none';
+            icone.textContent = emoji;
+
+            const corpo = document.createElement('div');
+            corpo.className = 'flex-1 min-w-0';
+
+            const linhaTitulo = document.createElement('p');
+            linhaTitulo.className = 'font-semibold text-sm text-gray-100';
+            linhaTitulo.textContent = titulo;
+            corpo.appendChild(linhaTitulo);
+
+            if (texto) {
+                const linhaTexto = document.createElement('p');
+                linhaTexto.className = 'text-xs text-gray-400 mt-1';
+                linhaTexto.textContent = texto;
+                corpo.appendChild(linhaTexto);
+            }
+
+            cabecalho.appendChild(icone);
+            cabecalho.appendChild(corpo);
+            toast.appendChild(cabecalho);
+
+            document.getElementById('toasts').appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('toast-saindo');
+                toast.addEventListener('animationend', () => toast.remove());
+            }, 5000);
+        }
+    </script>
+
+    {% block scripts %}{% endblock %}
 </body>
 </html>

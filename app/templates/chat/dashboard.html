@@ -1,0 +1,337 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Tutória{% endblock %}
+
+{% block content %}
+<div class="w-full max-w-7xl mx-auto px-6 py-8">
+
+    <div class="mb-8">
+        <p class="text-sm text-accent-400 font-medium mb-1">Visão gerencial</p>
+        <h1 class="text-3xl font-semibold">Dashboard da turma</h1>
+        <p class="text-gray-400 mt-2">
+            Engajamento e desempenho dos alunos da plataforma.
+        </p>
+    </div>
+
+    <!-- ── Cartões de resumo ────────────────────────────────────────────── -->
+    <section class="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
+        <article class="bg-base-800 border border-base-600 rounded-2xl p-5">
+            <p class="text-xs text-gray-400">Alunos</p>
+            <p class="text-2xl font-semibold mt-1">{{ estatisticas.total_alunos }}</p>
+        </article>
+        <article class="bg-base-800 border border-base-600 rounded-2xl p-5">
+            <p class="text-xs text-gray-400">Sessões</p>
+            <p class="text-2xl font-semibold mt-1">{{ estatisticas.total_sessoes }}</p>
+        </article>
+        <article class="bg-base-800 border border-base-600 rounded-2xl p-5">
+            <p class="text-xs text-gray-400">XP médio</p>
+            <p class="text-2xl font-semibold text-accent-400 mt-1">{{ estatisticas.xp_medio }}</p>
+        </article>
+        <article class="bg-base-800 border border-base-600 rounded-2xl p-5">
+            <p class="text-xs text-gray-400">Nota média</p>
+            <p class="text-2xl font-semibold mt-1">
+                {% if estatisticas.media_avaliacao %}
+                    {{ estatisticas.media_avaliacao }}<span class="text-sm text-gray-500">/5</span>
+                {% else %}
+                    <span class="text-gray-600">—</span>
+                {% endif %}
+            </p>
+        </article>
+        <article class="bg-base-800 border border-base-600 rounded-2xl p-5">
+            <p class="text-xs text-gray-400">Conquistas</p>
+            <p class="text-2xl font-semibold mt-1">{{ estatisticas.total_conquistas }}</p>
+        </article>
+        <article class="bg-base-800 border border-base-600 rounded-2xl p-5">
+            <p class="text-xs text-gray-400">Alertas abertos</p>
+            <p class="text-2xl font-semibold {% if estatisticas.alertas_abertos %}text-amber-400{% endif %} mt-1">
+                {{ estatisticas.alertas_abertos }}
+            </p>
+        </article>
+    </section>
+
+    <!-- ── Os quatro gráficos ───────────────────────────────────────────── -->
+    <section class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
+
+        <!-- 1. Engajamento ao longo do tempo -->
+        <article class="bg-base-800 border border-base-600 rounded-2xl p-6">
+            <h2 class="font-semibold">Engajamento</h2>
+            <p class="text-sm text-gray-400 mb-5">Perguntas feitas por dia — últimos 14 dias</p>
+
+            <div class="h-64"><canvas id="gEngajamento"></canvas></div>
+
+            <details class="mt-4 text-sm">
+                <summary class="text-gray-500 cursor-pointer hover:text-gray-300">Ver dados</summary>
+                <table class="w-full mt-3 text-left text-gray-400">
+                    <thead class="text-xs uppercase text-gray-500">
+                        <tr><th class="py-1">Dia</th><th class="py-1">Sessões</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for rotulo in grafico_engajamento.labels %}
+                        <tr class="border-t border-base-700">
+                            <td class="py-1">{{ rotulo }}</td>
+                            <td class="py-1">{{ grafico_engajamento.valores[loop.index0] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </details>
+        </article>
+
+        <!-- 2. Volume por disciplina -->
+        <article class="bg-base-800 border border-base-600 rounded-2xl p-6">
+            <h2 class="font-semibold">Disciplinas mais procuradas</h2>
+            <p class="text-sm text-gray-400 mb-5">Onde a turma mais tem dúvidas</p>
+
+            <div class="h-64"><canvas id="gDisciplinas"></canvas></div>
+
+            <details class="mt-4 text-sm">
+                <summary class="text-gray-500 cursor-pointer hover:text-gray-300">Ver dados</summary>
+                <table class="w-full mt-3 text-left text-gray-400">
+                    <thead class="text-xs uppercase text-gray-500">
+                        <tr><th class="py-1">Disciplina</th><th class="py-1">Perguntas</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for rotulo in grafico_disciplinas.labels %}
+                        <tr class="border-t border-base-700">
+                            <td class="py-1">{{ rotulo }}</td>
+                            <td class="py-1">{{ grafico_disciplinas.valores[loop.index0] }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td class="py-2" colspan="2">Nenhuma sessão registrada.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </details>
+        </article>
+
+        <!-- 3. Distribuição por nível -->
+        <article class="bg-base-800 border border-base-600 rounded-2xl p-6">
+            <h2 class="font-semibold">Distribuição por nível</h2>
+            <p class="text-sm text-gray-400 mb-5">Quantos alunos há em cada faixa de XP</p>
+
+            <div class="h-64"><canvas id="gNiveis"></canvas></div>
+
+            <details class="mt-4 text-sm">
+                <summary class="text-gray-500 cursor-pointer hover:text-gray-300">Ver dados</summary>
+                <table class="w-full mt-3 text-left text-gray-400">
+                    <thead class="text-xs uppercase text-gray-500">
+                        <tr><th class="py-1">Nível</th><th class="py-1">Alunos</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for rotulo in grafico_niveis.labels %}
+                        <tr class="border-t border-base-700">
+                            <td class="py-1">{{ rotulo }}</td>
+                            <td class="py-1">{{ grafico_niveis.valores[loop.index0] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </details>
+        </article>
+
+        <!-- 4. Ranking de XP -->
+        <article class="bg-base-800 border border-base-600 rounded-2xl p-6">
+            <h2 class="font-semibold">Ranking de XP</h2>
+            <p class="text-sm text-gray-400 mb-5">Os cinco alunos com mais pontos</p>
+
+            <div class="h-64"><canvas id="gRanking"></canvas></div>
+
+            <details class="mt-4 text-sm">
+                <summary class="text-gray-500 cursor-pointer hover:text-gray-300">Ver dados</summary>
+                <table class="w-full mt-3 text-left text-gray-400">
+                    <thead class="text-xs uppercase text-gray-500">
+                        <tr><th class="py-1">Aluno</th><th class="py-1">XP</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for rotulo in grafico_ranking.labels %}
+                        <tr class="border-t border-base-700">
+                            <td class="py-1">{{ rotulo }}</td>
+                            <td class="py-1">{{ grafico_ranking.valores[loop.index0] }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td class="py-2" colspan="2">Nenhum aluno cadastrado.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </details>
+        </article>
+    </section>
+
+    <!-- ── Alertas de dificuldade ───────────────────────────────────────── -->
+    <section>
+        <h2 class="text-xl font-semibold mb-1">Alertas de dificuldade</h2>
+        <p class="text-sm text-gray-400 mb-4">
+            Abertos automaticamente quando um aluno repete o mesmo assunto.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for alerta in alertas %}
+            <article class="bg-base-800 border border-amber-500/40 rounded-2xl p-5">
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="font-medium">{{ alerta.assunto }}</p>
+                        <p class="text-sm text-gray-400 mt-1">
+                            {{ alerta.aluno.nome }} · {{ alerta.total_perguntas }} perguntas
+                        </p>
+                    </div>
+                    <span class="text-lg">📌</span>
+                </div>
+            </article>
+            {% else %}
+            <div class="md:col-span-2 lg:col-span-3 bg-base-800 border border-base-600
+                        rounded-2xl p-8 text-center text-gray-400">
+                Nenhum alerta aberto. A turma está acompanhando bem o conteúdo. ✅
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<!-- Chart.js servido localmente: a apresentação não depende de internet. -->
+<script src="{{ url_for('static', filename='js/chart.umd.min.js') }}"></script>
+<script>
+    const VIOLETA = '#9085e9';
+
+    // Os níveis são ordenados (Iniciante → Mestre), então a rampa é de um tom
+    // só, clareando conforme o nível sobe.
+    const RAMPA_NIVEIS = ['#2a78d6', '#5598e7', '#86b6ef', '#b7d3f6', '#e0ecfc'];
+
+    const TINTA_SECUNDARIA = '#9aa0b4';
+    const GRADE = 'rgba(255, 255, 255, 0.06)';
+
+    Chart.defaults.color = TINTA_SECUNDARIA;
+    Chart.defaults.font.family = "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif";
+    Chart.defaults.font.size = 12;
+
+    const eixos = (mostrarGradeX = false) => ({
+        x: {
+            grid: { display: mostrarGradeX, color: GRADE, drawTicks: false },
+            border: { display: false },
+        },
+        y: {
+            beginAtZero: true,
+            ticks: { precision: 0 },
+            grid: { color: GRADE, drawTicks: false },
+            border: { display: false },
+        },
+    });
+
+    // ── 1. Engajamento — linha com área ───────────────────────────────────
+    new Chart(document.getElementById('gEngajamento'), {
+        type: 'line',
+        data: {
+            labels: {{ grafico_engajamento.labels | tojson }},
+            datasets: [{
+                label: 'Sessões',
+                data: {{ grafico_engajamento.valores | tojson }},
+                borderColor: VIOLETA,
+                backgroundColor: 'rgba(144, 133, 233, 0.12)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.35,
+                pointRadius: 0,
+                pointHoverRadius: 5,
+                pointHoverBackgroundColor: VIOLETA,
+                pointHoverBorderColor: '#171923',
+                pointHoverBorderWidth: 2,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            interaction: { mode: 'index', intersect: false },
+            scales: eixos(),
+        },
+    });
+
+    // ── 2. Disciplinas — barras ───────────────────────────────────────────
+    new Chart(document.getElementById('gDisciplinas'), {
+        type: 'bar',
+        data: {
+            labels: {{ grafico_disciplinas.labels | tojson }},
+            datasets: [{
+                label: 'Perguntas',
+                data: {{ grafico_disciplinas.valores | tojson }},
+                backgroundColor: VIOLETA,
+                borderRadius: 4,
+                borderSkipped: false,
+                maxBarThickness: 34,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: eixos(),
+        },
+    });
+
+    // ── 3. Níveis — rosca ─────────────────────────────────────────────────
+    new Chart(document.getElementById('gNiveis'), {
+        type: 'doughnut',
+        data: {
+            labels: {{ grafico_niveis.labels | tojson }},
+            datasets: [{
+                data: {{ grafico_niveis.valores | tojson }},
+                backgroundColor: RAMPA_NIVEIS,
+                // Anel na cor do fundo, para separar as fatias vizinhas.
+                borderColor: '#171923',
+                borderWidth: 2,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '62%',
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: 'circle' },
+                },
+                tooltip: {
+                    callbacks: {
+                        label: (item) => ` ${item.label}: ${item.parsed} aluno(s)`,
+                    },
+                },
+            },
+        },
+    });
+
+    // ── 4. Ranking de XP — barras horizontais ─────────────────────────────
+    new Chart(document.getElementById('gRanking'), {
+        type: 'bar',
+        data: {
+            labels: {{ grafico_ranking.labels | tojson }},
+            datasets: [{
+                label: 'XP',
+                data: {{ grafico_ranking.valores | tojson }},
+                backgroundColor: VIOLETA,
+                borderRadius: 4,
+                borderSkipped: false,
+                maxBarThickness: 26,
+            }],
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: { precision: 0 },
+                    grid: { color: GRADE, drawTicks: false },
+                    border: { display: false },
+                },
+                y: {
+                    grid: { display: false },
+                    border: { display: false },
+                },
+            },
+        },
+    });
+</script>
+{% endblock %}

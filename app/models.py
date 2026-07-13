@@ -89,6 +89,30 @@ class Aluno(UserMixin, db.Model):
                 return xp_min - self.pontos_xp
         return 0  # nível máximo
 
+    def progresso_nivel(self) -> int:
+        """Percentual (0 a 100) já percorrido DENTRO do nível atual.
+
+        É o número que a barra de XP anima na tela. Um aluno com 150 XP está
+        no nível Aprendiz (começa em 100, vai até 300), então já andou
+        50 de 200 pontos da faixa — ou seja, 25%.
+        """
+        faixa_inicio = 0
+        faixa_fim = None
+
+        for xp_min, _, _ in _NIVEIS:
+            if self.pontos_xp >= xp_min:
+                faixa_inicio = xp_min
+            elif faixa_fim is None:
+                faixa_fim = xp_min
+
+        if faixa_fim is None:
+            return 100  # nível máximo: barra cheia
+
+        percorrido = self.pontos_xp - faixa_inicio
+        tamanho_faixa = faixa_fim - faixa_inicio
+
+        return max(0, min(100, round(percorrido / tamanho_faixa * 100)))
+
     def adicionar_xp(self, quantidade: int):
         """Soma XP e atualiza o nível automaticamente."""
         self.pontos_xp += quantidade
