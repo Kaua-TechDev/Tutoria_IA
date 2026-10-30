@@ -1,67 +1,72 @@
 # Tutoria IA
 
-Sistema de tutoria educacional com inteligência artificial, construído com Python e Flask. Permite que estudantes interajam com um tutor adaptativo via chat, enquanto responsáveis acompanham o progresso em tempo real.
+[![CI](https://github.com/Kaua-TechDev/Tutoria_IA/actions/workflows/ci.yml/badge.svg)](https://github.com/Kaua-TechDev/Tutoria_IA/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Flask](https://img.shields.io/badge/flask-3.0-lightgrey)
 
----
-
-## Visão Geral
-
-O projeto resolve um problema concreto: estudantes que não têm acesso a tutores humanos personalizados. A solução usa LLMs para criar um assistente que adapta o tom e o conteúdo ao perfil de cada aluno, com guardrails para manter o foco pedagógico e um sistema de gamificação para engajamento.
-
----
-
-## Stack
-
-- **Backend:** Python 3.10+, Flask, SQLAlchemy  
-- **IA:** OpenAI API (GPT) com guardrails e perfis por segmento  
-- **Banco de dados:** SQLite (padrão) ou MySQL  
-- **Frontend:** HTML/CSS + Chart.js (dashboards)  
-- **Autenticação:** Flask sessions com controle de papéis (aluno / responsável)
+Tutor educacional com IA generativa. O aluno tira dúvidas num chat que adapta a linguagem ao seu nível de ensino, ganha XP e conquistas por estudar, e o responsável acompanha o progresso — e as dificuldades recorrentes — num painel próprio.
 
 ---
 
 ## Funcionalidades
 
 ### Chat com IA adaptativo
-- Integração com a API da OpenAI para respostas em linguagem natural
-- **Guardrails:** o modelo é instruído a redirecionar perguntas fora do escopo educacional (ex: mensalidades, assuntos pessoais)
-- **Perfis por segmento:** o prompt base muda de acordo com o perfil do aluno, adaptando linguagem e nível de dificuldade
+- Respostas da OpenAI em JSON estruturado: explicação, exercício prático e o tema da dúvida
+- **Guardrails em duas camadas:** filtro determinístico por palavra-chave (sem custo de token) e regras no prompt de sistema para os casos que o filtro não prevê
+- **Perfis por segmento:** Fundamental I, Fundamental II, Médio e Técnico têm tom e profundidade próprios
+- **Resiliência:** timeout, rate limit, erro de rede ou chave inválida caem numa resposta local — a pergunta continua registrada e valendo XP. Sem chave configurada, o app roda inteiro em modo demonstração
 
-### Sistema de gamificação
-- XP acumulado por interações e progresso nas trilhas
-- Sistema de níveis com progressão automática
-- 8 conquistas desbloqueáveis com critérios distintos
-- Alertas automáticos ao responsável quando o aluno apresenta dificuldades recorrentes
+### Gamificação
+- XP por pergunta e cinco níveis com progressão automática
+- 8 conquistas com critérios distintos (sequência de dias, trilhas concluídas, avaliações...), avaliadas até estabilizar — o bônus de uma pode liberar a seguinte
+- **Alerta de dificuldade:** três perguntas sobre o mesmo tema avisam o responsável
 
 ### Painel do responsável
-- Acesso restrito: cada responsável vê apenas os alunos vinculados ao seu perfil
-- Dashboard com 4 gráficos em Chart.js: atividade semanal, conquistas, nível atual e alertas
+- Resumo, histórico e progresso por trilha de cada aluno vinculado
+- Dashboard com 4 gráficos (Chart.js): engajamento diário, volume por disciplina, distribuição por nível e ranking de XP
+- Cada responsável enxerga **somente** os alunos vinculados a ele
 
-### Banco de dados
-- 8 tabelas com relacionamentos entre usuários, trilhas, sessões de chat, XP, conquistas e alertas
-- Schema documentado em `db/schema.sql` com seed para testes
+---
+
+## Stack
+
+| Camada | Tecnologia |
+|---|---|
+| Backend | Python 3.10+, Flask 3, SQLAlchemy 2 |
+| IA | OpenAI API (`gpt-4o-mini` por padrão) |
+| Banco | SQLite (padrão) ou MySQL |
+| Autenticação | Flask-Login, bcrypt, Flask-WTF (CSRF), Flask-Limiter |
+| Frontend | Jinja2, Tailwind CSS, Chart.js |
+| Qualidade | pytest, ruff, GitHub Actions |
 
 ---
 
 ## Arquitetura
 
 ```
-tutoria/
 ├── app/
-│   ├── __init__.py       # App factory — seleciona SQLite ou MySQL
-│   ├── models.py         # 8 tabelas + regras de XP e nível
-│   ├── ia_service.py     # Integração OpenAI, guardrails, perfis por segmento
-│   ├── gamificacao.py    # Motor de XP, conquistas e alertas
-│   └── routes/
-│       ├── auth.py       # Login e logout
-│       └── chat.py       # Chat, painel, detalhes e dashboard
+│   ├── __init__.py          # App factory, headers de segurança, páginas de erro
+│   ├── extensions.py        # db, CSRF, rate limiter, login manager
+│   ├── models.py            # 8 tabelas + regras de nível e senha
+│   ├── ia_service.py        # OpenAI: guardrails, perfis, fallback local
+│   ├── gamificacao.py       # XP, conquistas e alertas de dificuldade
+│   ├── routes/
+│   │   ├── access.py        # Decorator de controle de acesso por papel
+│   │   ├── auth.py          # Login e logout
+│   │   ├── student.py       # Chat e avaliação das respostas
+│   │   └── guardian.py      # Painel, detalhes do aluno e dashboard
+│   ├── templates/
+│   └── static/
 ├── db/
-│   ├── schema.sql
-│   ├── seed.sql
-│   └── inicializar_sqlite.py
-├── .env.example
+│   ├── schema.sql           # Schema MySQL
+│   └── init_db.py           # Cria as tabelas e os dados de demonstração
+├── docs/                    # Diagrama entidade-relacionamento
+├── tests/                   # Testes de models, serviço de IA e rotas
+├── config.py                # Configuração por ambiente (dev, test, prod)
 └── run.py
 ```
+
+**Fluxo de uma pergunta:** `POST /chat/perguntar` → validação → `ia_service.answer_question()` (guardrail → OpenAI ou fallback) → sessão salva → `gamificacao.process_session()` (XP, conquistas, alerta) → um único commit → JSON para o front-end.
 
 ---
 
@@ -70,52 +75,83 @@ tutoria/
 **Pré-requisito:** Python 3.10+
 
 ```bash
-# Clone o repositório
 git clone https://github.com/Kaua-TechDev/Tutoria_IA.git
 cd Tutoria_IA
 
-# Crie o ambiente virtual
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# Instale as dependências
+source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
-# Configure as variáveis de ambiente
-cp .env.example .env
-# Edite o .env e adicione sua OPENAI_API_KEY
-# Sem a chave, o sistema roda em modo demo com respostas locais
-
-# Inicialize o banco de dados
-python db/inicializar_sqlite.py
-
-# Inicie a aplicação
+cp .env.example .env            # opcional: preencha OPENAI_API_KEY
+python db/init_db.py            # cria o banco com dados de demonstração
 python run.py
 ```
 
-Acesse em `http://localhost:5000`
+Acesse `http://localhost:5000`. No Windows, `iniciar_windows.bat` faz todos os passos.
 
-**Contas de teste:**
-| Papel | Credencial | Senha |
+| Papel | Login | Senha |
 |---|---|---|
 | Aluno | matrícula `2026001` | `teste123` |
 | Responsável | `maria.lima@email.com` | `teste123` |
+
+### Testes e lint
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+ruff check .
+```
 
 ---
 
 ## Variáveis de ambiente
 
+Todas são opcionais em desenvolvimento; o `.env.example` explica cada uma.
+
 | Variável | Descrição |
 |---|---|
-| `OPENAI_API_KEY` | Chave da API da OpenAI. Sem ela, o sistema entra em modo demo |
-| `SECRET_KEY` | Chave secreta do Flask para sessões |
-| `DATABASE_URL` | URL do banco (padrão: SQLite local) |
+| `APP_ENV` | `development` (padrão) ou `production` |
+| `SECRET_KEY` | Assina os cookies de sessão. Obrigatória em produção |
+| `DATABASE_URL` | URL do banco (padrão: SQLite em `instance/`) |
+| `OPENAI_API_KEY` | Chave da OpenAI. Sem ela, modo demonstração |
+| `OPENAI_MODEL` | Modelo usado (padrão: `gpt-4o-mini`) |
+| `OPENAI_TIMEOUT` | Segundos de espera pela API (padrão: 20) |
+| `OPENAI_MAX_RETRIES` | Novas tentativas em falhas temporárias (padrão: 2) |
+| `RATELIMIT_STORAGE_URI` | Storage do rate limit (padrão: memória; use Redis com vários workers) |
+
+---
+
+## Segurança
+
+- Senhas com bcrypt; login com tempo constante, sem revelar quais matrículas ou e-mails existem
+- CSRF em todos os formulários e chamadas JSON; logout apenas por POST
+- Rate limit no login (força bruta) e no chat (custo da API por aluno)
+- Autorização por papel em todas as rotas; recursos de outros usuários respondem 404
+- Cookies `HttpOnly` e `SameSite=Lax`; em produção, `Secure` e HSTS
+- Headers `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` e `Permissions-Policy`
+- Tamanho máximo de pergunta e de requisição, limitando abuso e custo de tokens
+- Conteúdo da IA sempre inserido como texto no DOM, nunca como HTML
 
 ---
 
 ## Decisões técnicas
 
-- **SQLite por padrão:** facilita rodar localmente sem dependências externas; MySQL disponível para produção via variável de ambiente
-- **App factory pattern:** permite criar instâncias separadas por ambiente (dev/test/prod)
-- **Guardrails no prompt:** ao invés de pós-processamento, as restrições são definidas no system prompt do modelo, reduzindo latência e mantendo consistência
-- **Chart.js local:** biblioteca servida estaticamente para evitar dependência de CDN externo
+- **Fallback em vez de erro:** a IA é uma dependência externa; quando falha, o aluno recebe uma resposta útil e o progresso não se perde
+- **Guardrail por palavra-chave antes da API:** bloqueio determinístico, instantâneo e sem custo; o prompt de sistema cobre o restante
+- **Agregações no banco:** painel e dashboard usam `GROUP BY` em vez de carregar sessões na memória
+- **Gamificação sem commit:** as regras só fazem `flush`; a rota decide quando gravar, então uma falha desfaz tudo de uma vez
+- **SQLite por padrão, MySQL via `DATABASE_URL`:** roda localmente sem infraestrutura
+- **Chart.js servido localmente:** sem dependência de CDN para os gráficos
+
+---
+
+## Autores
+
+- **Kauã Ernesto** — [@Kaua-TechDev](https://github.com/Kaua-TechDev)
+- [@samfernandes](https://github.com/samfernandes)
+
+---
+
+## Licença
+
+[MIT](LICENSE)
