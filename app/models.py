@@ -4,7 +4,7 @@ schema (db/schema.sql); métodos e helpers Python estão em inglês.
 """
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import bcrypt
 from flask_login import UserMixin
@@ -24,7 +24,7 @@ _DUMMY_HASH = bcrypt.hashpw(b'tutoria-dummy-password', bcrypt.gensalt()).decode(
 
 def utcnow() -> datetime:
     """Horário UTC sem fuso, no mesmo formato que o banco guarda."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def verify_dummy_password(password: str) -> None:

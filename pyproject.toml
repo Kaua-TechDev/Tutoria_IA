@@ -2,7 +2,7 @@
 name = "tutoria-ia"
 version = "1.0.0"
 description = "Tutor educacional com IA generativa, gamificação e painel para responsáveis"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -10,7 +10,7 @@ addopts = "-q"
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py311"
 extend-exclude = ["venv"]
 
 [tool.ruff.lint]

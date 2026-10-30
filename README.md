@@ -1,7 +1,7 @@
 # Tutoria IA
 
 [![CI](https://github.com/Kaua-TechDev/Tutoria_IA/actions/workflows/ci.yml/badge.svg)](https://github.com/Kaua-TechDev/Tutoria_IA/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![Flask](https://img.shields.io/badge/flask-3.0-lightgrey)
 
 Tutor educacional com IA generativa. O aluno tira dúvidas num chat que adapta a linguagem ao seu nível de ensino, ganha XP e conquistas por estudar, e o responsável acompanha o progresso — e as dificuldades recorrentes — num painel próprio.
@@ -32,7 +32,7 @@ Tutor educacional com IA generativa. O aluno tira dúvidas num chat que adapta a
 
 | Camada | Tecnologia |
 |---|---|
-| Backend | Python 3.10+, Flask 3, SQLAlchemy 2 |
+| Backend | Python 3.11+, Flask 3, SQLAlchemy 2 |
 | IA | OpenAI API (`gpt-4o-mini` por padrão) |
 | Banco | SQLite (padrão) ou MySQL |
 | Autenticação | Flask-Login, bcrypt, Flask-WTF (CSRF), Flask-Limiter |
@@ -72,7 +72,7 @@ Tutor educacional com IA generativa. O aluno tira dúvidas num chat que adapta a
 
 ## Como rodar
 
-**Pré-requisito:** Python 3.10+
+**Pré-requisito:** Python 3.11+
 
 ```bash
 git clone https://github.com/Kaua-TechDev/Tutoria_IA.git
