@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Erro {{ status }} — Tutória{% endblock %}
+
+{% block content %}
+<div class="w-full flex items-center justify-center py-24 px-4">
+    <div class="text-center max-w-md">
+        <p class="text-5xl font-semibold text-accent-400 mb-3">{{ status }}</p>
+        <p class="text-gray-300 mb-6">{{ message }}</p>
+        <a href="{{ url_for('student.index') }}"
+           class="px-4 py-2 rounded-lg bg-base-700 hover:bg-base-600 transition text-gray-200 text-sm">
+            Voltar ao início
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -23,6 +23,7 @@
         </div>
 
         <form method="POST" action="{{ url_for('auth.login') }}" class="space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="tipo_login" id="tipo_login" value="{{ tipo_ativo }}">
 
             <div>
@@ -79,6 +80,6 @@
     }
 
     // Ativa a aba correta ao carregar a página (mantém a escolha após erro de login).
-    mudarAba('{{ tipo_ativo }}');
+    mudarAba({{ tipo_ativo | tojson }});
 </script>
 {% endblock %}

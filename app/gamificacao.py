@@ -1,30 +1,32 @@
 """
-gamificacao.py
-──────────────
-Semana 5. Concentra as regras de XP, conquistas e alertas de dificuldade,
-mantendo as rotas (chat.py) enxutas.
+Motor de gamificação: regras de XP, conquistas e alertas de dificuldade,
+mantendo as rotas enxutas.
 
-Ponto de entrada: `processar_sessao(aluno, sessao)`, chamado logo depois que
-uma pergunta e salva.
+Ponto de entrada: `process_session(student, session)`, chamado logo depois
+que uma pergunta é salva.
+
+As chaves dos dicionários devolvidos (xp_total, nivel_nome, conquistas...)
+seguem em português porque são o contrato com os templates e o front-end.
 """
 
 import unicodedata
-from datetime import timedelta
+from collections.abc import Callable, Iterable
+from datetime import date, timedelta
 
 from .extensions import db
-from .models import AlertaDificuldade, AlunoConquista, Conquista, Sessao
+from .models import AlertaDificuldade, Aluno, AlunoConquista, Conquista, Sessao
 
-# ── Regras de pontuacao ──────────────────────────────────────────────────
-XP_POR_PERGUNTA = 10
+# ── Regras de pontuação ──────────────────────────────────────────────────
+XP_PER_QUESTION = 10
 
 # Quantas perguntas no mesmo assunto disparam um alerta de dificuldade.
-LIMITE_ALERTA_DIFICULDADE = 3
+DIFFICULTY_ALERT_THRESHOLD = 3
 
-# Quantas sessoes numa trilha equivalem a 100% dela (mesma regra da Semana 4).
-META_SESSOES_TRILHA = 5
+# Quantas sessões numa trilha equivalem a 100% dela.
+TRACK_SESSION_GOAL = 5
 
-# O banco guarda o nome do icone ('alvo', 'fogo'...); o emoji fica so na tela.
-EMOJI_CONQUISTA = {
+# O banco guarda o nome do ícone ('alvo', 'fogo'...); o emoji fica só na tela.
+ACHIEVEMENT_EMOJI = {
     'alvo': '🎯',
     'corrida': '🏃',
     'mapa': '🗺️',
@@ -36,79 +38,82 @@ EMOJI_CONQUISTA = {
 }
 
 
-def emoji_de(icone: str) -> str:
-    """Traduz o nome do icone guardado no banco para um emoji."""
-    return EMOJI_CONQUISTA.get(icone or '', '🏆')
+def emoji_for(icon: str | None) -> str:
+    """Traduz o nome do ícone guardado no banco para um emoji.
+
+    Ícones desconhecidos ou vazios viram um troféu genérico.
+    """
+    return ACHIEVEMENT_EMOJI.get(icon or '', '🏆')
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# ASSUNTO — normalizacao usada para agrupar perguntas parecidas
+# ASSUNTO — normalização usada para agrupar perguntas parecidas
 # ══════════════════════════════════════════════════════════════════════════
-def normalizar(texto: str) -> str:
-    """Minusculo, sem acento e sem espaco sobrando.
+def normalize(text: str | None) -> str:
+    """Minúsculo, sem acento e sem espaço sobrando.
 
     Sem isso, "Chaves Estrangeiras" e "chaves estrangeiras" contariam como
     assuntos diferentes.
     """
-    if not texto:
+    if not text:
         return ''
 
-    sem_acento = unicodedata.normalize('NFKD', texto)
-    sem_acento = ''.join(c for c in sem_acento if not unicodedata.combining(c))
-    return ' '.join(sem_acento.lower().split())
+    unaccented = unicodedata.normalize('NFKD', text)
+    unaccented = ''.join(c for c in unaccented if not unicodedata.combining(c))
+    return ' '.join(unaccented.lower().split())
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# CRITERIOS DAS CONQUISTAS
+# CRITÉRIOS DAS CONQUISTAS
 # ══════════════════════════════════════════════════════════════════════════
-def _dias_consecutivos(datas) -> int:
-    """Maior sequencia de dias seguidos em que o aluno estudou."""
-    dias = sorted({d for d in datas})
-    if not dias:
+def _longest_streak(dates: Iterable[date]) -> int:
+    """Maior sequência de dias seguidos em que o aluno estudou."""
+    days = sorted(set(dates))
+    if not days:
         return 0
 
-    maior = atual = 1
-    for anterior, seguinte in zip(dias, dias[1:]):
-        if seguinte - anterior == timedelta(days=1):
-            atual += 1
-            maior = max(maior, atual)
+    longest = current = 1
+    for previous, following in zip(days, days[1:], strict=False):
+        if following - previous == timedelta(days=1):
+            current += 1
+            longest = max(longest, current)
         else:
-            atual = 1
-    return maior
+            current = 1
+    return longest
 
 
-def _contexto(aluno) -> dict:
-    """Numeros do aluno usados pelos criterios das conquistas.
+def _student_sessions(student: Aluno) -> list[Sessao]:
+    return Sessao.query.filter_by(aluno_id=student.id).all()
 
-    Conta apenas as sessoes que valeram XP: perguntas barradas pelo guardrail
-    ficam no historico, mas nao valem como estudo. Se valessem, daria para
+
+def _build_context(student: Aluno, all_sessions: list[Sessao]) -> dict:
+    """Números do aluno usados pelos critérios das conquistas.
+
+    Conta apenas as sessões que valeram XP: perguntas barradas pelo guardrail
+    ficam no histórico, mas não valem como estudo. Se valessem, daria para
     destravar conquistas fazendo justamente perguntas proibidas.
     """
-    sessoes = [
-        sessao
-        for sessao in Sessao.query.filter_by(aluno_id=aluno.id).all()
-        if (sessao.xp_ganho or 0) > 0
-    ]
+    sessions = [session for session in all_sessions if (session.xp_ganho or 0) > 0]
 
-    sessoes_por_trilha = {}
-    for sessao in sessoes:
-        if sessao.trilha_id is not None:
-            sessoes_por_trilha[sessao.trilha_id] = sessoes_por_trilha.get(sessao.trilha_id, 0) + 1
+    sessions_per_track: dict[int, int] = {}
+    for session in sessions:
+        if session.trilha_id is not None:
+            sessions_per_track[session.trilha_id] = sessions_per_track.get(session.trilha_id, 0) + 1
 
     return {
-        'total_sessoes': len(sessoes),
-        'trilhas_distintas': len(sessoes_por_trilha),
-        'total_avaliacoes': sum(1 for s in sessoes if s.avaliacao is not None),
-        'dias_consecutivos': _dias_consecutivos(s.criado_em.date() for s in sessoes),
-        'pontos_xp': aluno.pontos_xp,
+        'total_sessoes': len(sessions),
+        'trilhas_distintas': len(sessions_per_track),
+        'total_avaliacoes': sum(1 for s in sessions if s.avaliacao is not None),
+        'dias_consecutivos': _longest_streak(s.criado_em.date() for s in sessions),
+        'pontos_xp': student.pontos_xp,
         'tem_trilha_completa': any(
-            total >= META_SESSOES_TRILHA for total in sessoes_por_trilha.values()
+            total >= TRACK_SESSION_GOAL for total in sessions_per_track.values()
         ),
     }
 
 
-# Cada criterio guardado na tabela conquistas vira uma regra aqui.
-CRITERIOS = {
+# Cada critério guardado na tabela conquistas vira uma regra aqui.
+CRITERIA: dict[str, Callable[[dict], bool]] = {
     'PRIMEIRA_PERGUNTA':   lambda c: c['total_sessoes'] >= 1,
     'SESSOES_10':          lambda c: c['total_sessoes'] >= 10,
     'TRILHAS_5':           lambda c: c['trilhas_distintas'] >= 5,
@@ -120,141 +125,158 @@ CRITERIOS = {
 }
 
 
-def avaliar_conquistas(aluno) -> list[dict]:
+def evaluate_achievements(
+    student: Aluno, sessions: list[Sessao] | None = None
+) -> list[dict]:
     """Desbloqueia as conquistas que o aluno passou a merecer.
 
-    Repete ate estabilizar porque o bonus de XP de uma conquista pode
-    desbloquear a proxima (o bonus do Maratonista pode levar o aluno aos
-    500 XP e liberar o Dedicado de uma vez).
+    Repete até estabilizar porque o bônus de XP de uma conquista pode
+    desbloquear a próxima (o bônus do Maratonista pode levar o aluno aos
+    500 XP e liberar o Dedicado de uma vez). As sessões não mudam entre as
+    voltas, então são lidas uma vez só; `sessions` permite reaproveitar uma
+    leitura já feita por quem chamou.
+
+    Não faz commit. Devolve so as conquistas desbloqueadas nesta chamada,
+    no formato {nome, descricao, emoji, xp_bonus}.
     """
-    ja_tem = {
-        vinculo.conquista_id
-        for vinculo in AlunoConquista.query.filter_by(aluno_id=aluno.id).all()
+    owned = {
+        link.conquista_id
+        for link in AlunoConquista.query.filter_by(aluno_id=student.id).all()
     }
 
-    desbloqueadas = []
+    if sessions is None:
+        sessions = _student_sessions(student)
+
+    achievements = Conquista.query.all()
+    unlocked = []
 
     # Limite de voltas: uma por conquista, para nunca virar loop infinito.
-    for _ in range(len(CRITERIOS) + 1):
-        contexto = _contexto(aluno)
-        novas = []
+    for _ in range(len(CRITERIA) + 1):
+        context = _build_context(student, sessions)
+        new_ones = []
 
-        for conquista in Conquista.query.all():
-            if conquista.id in ja_tem:
+        for achievement in achievements:
+            if achievement.id in owned:
                 continue
 
-            criterio = CRITERIOS.get(conquista.criterio)
-            if criterio is None or not criterio(contexto):
+            criterion = CRITERIA.get(achievement.criterio)
+            if criterion is None or not criterion(context):
                 continue
 
             db.session.add(
-                AlunoConquista(aluno_id=aluno.id, conquista_id=conquista.id)
+                AlunoConquista(aluno_id=student.id, conquista_id=achievement.id)
             )
-            ja_tem.add(conquista.id)
+            owned.add(achievement.id)
 
-            if conquista.xp_bonus:
-                aluno.adicionar_xp(conquista.xp_bonus)
+            if achievement.xp_bonus:
+                student.add_xp(achievement.xp_bonus)
 
-            novas.append({
-                'nome': conquista.nome,
-                'descricao': conquista.descricao,
-                'emoji': emoji_de(conquista.icone),
-                'xp_bonus': conquista.xp_bonus,
+            new_ones.append({
+                'nome': achievement.nome,
+                'descricao': achievement.descricao,
+                'emoji': emoji_for(achievement.icone),
+                'xp_bonus': achievement.xp_bonus,
             })
 
-        if not novas:
+        if not new_ones:
             break
 
-        desbloqueadas.extend(novas)
-        db.session.flush()
+        unlocked.extend(new_ones)
 
-    return desbloqueadas
+    return unlocked
 
 
 # ══════════════════════════════════════════════════════════════════════════
 # ALERTAS DE DIFICULDADE
 # ══════════════════════════════════════════════════════════════════════════
-def verificar_dificuldade(aluno, assunto: str) -> dict | None:
+def check_difficulty(
+    student: Aluno, topic: str | None, sessions: list[Sessao] | None = None
+) -> dict | None:
     """Abre (ou atualiza) um alerta quando o aluno insiste no mesmo assunto.
 
-    A partir de LIMITE_ALERTA_DIFICULDADE perguntas sobre o mesmo tema, o
-    responsavel passa a ver o aviso no painel. Se o alerta ja existe e esta
-    aberto, so atualizamos a contagem — nao criamos um alerta duplicado.
+    A partir de DIFFICULTY_ALERT_THRESHOLD perguntas sobre o mesmo tema, o
+    responsável passa a ver o aviso no painel. Se o alerta já existe e está
+    aberto, só atualizamos a contagem — não criamos um alerta duplicado.
 
-    Devolve o alerta apenas quando ele e criado agora (para avisar na tela).
+    Devolve o alerta apenas quando ele é criado agora (para avisar na tela).
     """
-    chave = normalizar(assunto)
-    if not chave:
+    key = normalize(topic)
+    if not key:
         return None
 
-    repeticoes = sum(
-        1 for sessao in Sessao.query.filter_by(aluno_id=aluno.id).all()
-        if normalizar(sessao.assunto) == chave
-    )
+    if sessions is None:
+        sessions = _student_sessions(student)
 
-    if repeticoes < LIMITE_ALERTA_DIFICULDADE:
+    repetitions = sum(1 for session in sessions if normalize(session.assunto) == key)
+
+    if repetitions < DIFFICULTY_ALERT_THRESHOLD:
         return None
 
-    aberto = next(
+    open_alert = next(
         (
-            alerta
-            for alerta in AlertaDificuldade.query.filter_by(
-                aluno_id=aluno.id, resolvido=False
+            alert
+            for alert in AlertaDificuldade.query.filter_by(
+                aluno_id=student.id, resolvido=False
             ).all()
-            if normalizar(alerta.assunto) == chave
+            if normalize(alert.assunto) == key
         ),
         None,
     )
 
-    if aberto is not None:
-        aberto.total_perguntas = repeticoes
+    if open_alert is not None:
+        open_alert.total_perguntas = repetitions
         return None
 
-    alerta = AlertaDificuldade(
-        aluno_id=aluno.id,
-        assunto=assunto,
-        total_perguntas=repeticoes,
+    alert = AlertaDificuldade(
+        aluno_id=student.id,
+        assunto=topic,
+        total_perguntas=repetitions,
         resolvido=False,
     )
-    db.session.add(alerta)
+    db.session.add(alert)
 
-    return {'assunto': assunto, 'total_perguntas': repeticoes}
+    return {'assunto': topic, 'total_perguntas': repetitions}
 
 
 # ══════════════════════════════════════════════════════════════════════════
 # PONTO DE ENTRADA
 # ══════════════════════════════════════════════════════════════════════════
-def estado_do_aluno(aluno) -> dict:
-    """Resumo da gamificacao usado pela barra de XP e pelo cabecalho da tela."""
+def student_state(student: Aluno) -> dict:
+    """Resumo da gamificação usado pela barra de XP e pelo cabecalho da tela."""
     return {
-        'xp_total': aluno.pontos_xp,
-        'nivel': aluno.nivel,
-        'nivel_nome': aluno.nivel_nome,
-        'progresso_nivel': aluno.progresso_nivel(),
-        'xp_para_proximo': aluno.xp_para_proximo_nivel(),
+        'xp_total': student.pontos_xp,
+        'nivel': student.nivel,
+        'nivel_nome': student.level_name,
+        'progresso_nivel': student.level_progress(),
+        'xp_para_proximo': student.xp_to_next_level(),
     }
 
 
-def processar_sessao(aluno, sessao) -> dict:
-    """Aplica as regras da Semana 5 depois que uma pergunta e registrada.
+def process_session(student: Aluno, session: Sessao) -> dict:
+    """Aplica XP, conquistas e alertas depois que uma pergunta é registrada.
 
-    Espera que `sessao` ja tenha sido adicionada a sessao do SQLAlchemy e que
-    um flush tenha ocorrido, para que ela entre nas contagens. Nao faz commit:
+    Soma o XP da sessão, desbloqueia conquistas e verifica alertas de
+    dificuldade. Devolve o estado do aluno mais xp_ganho, subiu_de_nivel,
+    conquistas e alerta.
+
+    Espera que `session` já tenha sido adicionada à sessão do SQLAlchemy e que
+    um flush tenha ocorrido, para que ela entre nas contagens. Não faz commit:
     quem chama decide a hora de gravar.
     """
-    nivel_antes = aluno.nivel
+    level_before = student.nivel
 
-    if sessao.xp_ganho:
-        aluno.adicionar_xp(sessao.xp_ganho)
+    if session.xp_ganho:
+        student.add_xp(session.xp_ganho)
 
-    conquistas = avaliar_conquistas(aluno)
-    alerta = verificar_dificuldade(aluno, sessao.assunto)
+    sessions = _student_sessions(student)
+    achievements = evaluate_achievements(student, sessions)
+    alert = check_difficulty(student, session.assunto, sessions)
 
-    resultado = estado_do_aluno(aluno)
-    resultado.update({
-        'xp_ganho': sessao.xp_ganho,
-        'subiu_de_nivel': aluno.nivel > nivel_antes,
-        'conquistas': conquistas,
-        'alerta': alerta,
+    result = student_state(student)
+    result.update({
+        'xp_ganho': session.xp_ganho,
+        'subiu_de_nivel': student.nivel > level_before,
+        'conquistas': achievements,
+        'alerta': alert,
     })
-    return resultado
+    return result

@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}Tutória{% endblock %}</title>
 
-    <!-- Tailwind via CDN — suficiente para o MVP, sem necessidade de build -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -61,25 +61,25 @@
     <!-- Barra superior -->
     <header class="bg-base-800 border-b border-base-600 px-6 py-3 flex items-center justify-between">
         <div class="flex items-center gap-6">
-            <a href="{{ url_for('chat.index') }}" class="flex items-center gap-2 font-semibold text-lg">
+            <a href="{{ url_for('student.index') }}" class="flex items-center gap-2 font-semibold text-lg">
                 <span>🎓</span>
                 <span>Tutória</span>
             </a>
 
-            {% if current_user.is_authenticated and current_user.get_id().startswith('r-') %}
+            {% if current_user.is_authenticated and current_user.is_guardian %}
             <nav class="hidden sm:flex items-center gap-1 text-sm">
-                <a href="{{ url_for('chat.painel_responsavel') }}"
+                <a href="{{ url_for('guardian.panel') }}"
                    class="px-3 py-1.5 rounded-lg transition
-                          {% if request.endpoint in ['chat.painel_responsavel', 'chat.detalhes_aluno'] %}
+                          {% if request.endpoint in ['guardian.panel', 'guardian.student_details'] %}
                           bg-base-700 text-gray-100
                           {% else %}
                           text-gray-400 hover:text-gray-100 hover:bg-base-700
                           {% endif %}">
                     Painel
                 </a>
-                <a href="{{ url_for('chat.dashboard') }}"
+                <a href="{{ url_for('guardian.dashboard') }}"
                    class="px-3 py-1.5 rounded-lg transition
-                          {% if request.endpoint == 'chat.dashboard' %}
+                          {% if request.endpoint == 'guardian.dashboard' %}
                           bg-base-700 text-gray-100
                           {% else %}
                           text-gray-400 hover:text-gray-100 hover:bg-base-700
@@ -93,10 +93,13 @@
         {% if current_user.is_authenticated %}
         <div class="flex items-center gap-4 text-sm">
             <span class="text-gray-400">Olá, {{ current_user.nome }}</span>
-            <a href="{{ url_for('auth.logout') }}"
-               class="px-3 py-1.5 rounded-lg bg-base-700 hover:bg-base-600 transition text-gray-200">
-                Sair
-            </a>
+            <form method="POST" action="{{ url_for('auth.logout') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit"
+                        class="px-3 py-1.5 rounded-lg bg-base-700 hover:bg-base-600 transition text-gray-200">
+                    Sair
+                </button>
+            </form>
         </div>
         {% endif %}
     </header>
@@ -124,6 +127,10 @@
     <div id="toasts" class="fixed top-5 right-5 z-50 w-80 space-y-3"></div>
 
     <script>
+        // Cabeçalhos das chamadas JSON, com o token CSRF exigido pelo servidor.
+        const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]').content;
+        const JSON_HEADERS = { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN };
+
         // Notificação de canto: XP ganho, subida de nível, conquista e alerta.
         function mostrarToast({ emoji = '✨', titulo, texto = '', destaque = 'accent' }) {
             const cores = {
