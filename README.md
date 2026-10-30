@@ -6,6 +6,8 @@
 
 Tutor educacional com IA generativa. O aluno tira dúvidas num chat que adapta a linguagem ao seu nível de ensino, ganha XP e conquistas por estudar, e o responsável acompanha o progresso — e as dificuldades recorrentes — num painel próprio.
 
+> **Origem:** desenvolvido como projeto acadêmico em dupla e depois evoluído para padrão de produção — testes automatizados, CI, controle de acesso por papel, CSRF, rate limit e consultas otimizadas.
+
 ---
 
 ## Funcionalidades
@@ -36,7 +38,7 @@ Tutor educacional com IA generativa. O aluno tira dúvidas num chat que adapta a
 | IA | OpenAI API (`gpt-4o-mini` por padrão) |
 | Banco | SQLite (padrão) ou MySQL |
 | Autenticação | Flask-Login, bcrypt, Flask-WTF (CSRF), Flask-Limiter |
-| Frontend | Jinja2, Tailwind CSS, Chart.js |
+| Frontend | Jinja2, Tailwind CSS (compilado), Chart.js |
 | Qualidade | pytest, ruff, GitHub Actions |
 
 ---
@@ -94,6 +96,14 @@ Acesse `http://localhost:5000`. No Windows, `iniciar_windows.bat` faz todos os p
 | Aluno | matrícula `2026001` | `teste123` |
 | Responsável | `maria.lima@email.com` | `teste123` |
 
+### Frontend (CSS)
+
+O CSS servido (`app/static/css/app.css`) é gerado pelo Tailwind a partir de `assets/css/app.css` e já vem compilado no repositório. Só é preciso recompilar ao usar classes novas nos templates, com o [executável standalone](https://github.com/tailwindlabs/tailwindcss/releases/tag/v3.4.17) (não exige Node):
+
+```bash
+tailwindcss -i assets/css/app.css -o app/static/css/app.css --minify
+```
+
 ### Testes e lint
 
 ```bash
@@ -142,7 +152,7 @@ Todas são opcionais em desenvolvimento; o `.env.example` explica cada uma.
 - **Agregações no banco:** painel e dashboard usam `GROUP BY` em vez de carregar sessões na memória
 - **Gamificação sem commit:** as regras só fazem `flush`; a rota decide quando gravar, então uma falha desfaz tudo de uma vez
 - **SQLite por padrão, MySQL via `DATABASE_URL`:** roda localmente sem infraestrutura
-- **Chart.js servido localmente:** sem dependência de CDN para os gráficos
+- **Assets servidos localmente:** Tailwind compilado e Chart.js no próprio projeto, sem depender de CDN
 
 ---
 

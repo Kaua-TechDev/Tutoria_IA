@@ -1,0 +1,35 @@
+/*
+ * Fonte do CSS da aplicação. O arquivo servido (app/static/css/app.css) é
+ * gerado a partir deste — veja "Frontend" no README.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+    /* A barra de XP anima sozinha sempre que a largura muda. */
+    .barra-xp {
+        transition: width 900ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .toast        { animation: entrada-toast 320ms ease-out; }
+    .toast-saindo { animation: saida-toast 280ms ease-in forwards; }
+
+    /* Pulso usado quando o aluno sobe de nível ou ganha uma conquista. */
+    .pulsando { animation: brilho 1.4s ease-out 2; }
+}
+
+@keyframes entrada-toast {
+    from { opacity: 0; transform: translateX(24px) scale(0.96); }
+    to   { opacity: 1; transform: translateX(0)    scale(1); }
+}
+
+@keyframes saida-toast {
+    to { opacity: 0; transform: translateX(24px) scale(0.96); }
+}
+
+@keyframes brilho {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(124, 92, 255, 0.5); }
+    50%      { box-shadow: 0 0 0 10px rgba(124, 92, 255, 0); }
+}
