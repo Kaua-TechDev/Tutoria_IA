@@ -32,8 +32,8 @@ echo Instalando dependencias...
 if errorlevel 1 goto erro
 
 if not exist "instance\tutoria.db" (
-    echo Criando banco SQLite...
-    "venv\Scripts\python.exe" db\inicializar_sqlite.py
+    echo Criando banco de dados...
+    "venv\Scripts\python.exe" db\init_db.py
     if errorlevel 1 goto erro
 )
 

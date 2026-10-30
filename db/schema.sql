@@ -1,6 +1,7 @@
--- Tutoria - Tutor de Trilhas de Estudo
--- Semana 1: criacao do banco de dados
--- Execute este arquivo antes do seed.sql
+-- Tutoria IA — schema MySQL
+--
+-- Espelha app/models.py. Para criar as tabelas e os dados de demonstração
+-- em qualquer banco (SQLite ou MySQL), prefira: python db/init_db.py
 
 CREATE DATABASE IF NOT EXISTS tutor_trilhas
     CHARACTER SET utf8mb4
@@ -17,6 +18,7 @@ CREATE TABLE alunos (
     segmento    ENUM('FUNDAMENTAL_I','FUNDAMENTAL_II','MEDIO','TECNICO') NOT NULL,
     pontos_xp   INT NOT NULL DEFAULT 0,
     nivel       INT NOT NULL DEFAULT 1,
+    ativo       ENUM('ativo','ausente') NOT NULL DEFAULT 'ativo',
     criado_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -43,7 +45,9 @@ CREATE TABLE trilhas (
     descricao   TEXT,
     disciplina  VARCHAR(100) NOT NULL,
     segmento    ENUM('FUNDAMENTAL_I','FUNDAMENTAL_II','MEDIO','TECNICO') NOT NULL,
-    criado_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ativo       ENUM('ativo','ausente') NOT NULL DEFAULT 'ativo',
+    criado_em   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX ix_trilhas_segmento (segmento)
 );
 
 CREATE TABLE sessoes (
@@ -51,12 +55,14 @@ CREATE TABLE sessoes (
     aluno_id         INT          NOT NULL,
     trilha_id        INT          NULL,
     disciplina       VARCHAR(100) NOT NULL,
+    assunto          VARCHAR(255) NULL,
     pergunta         TEXT         NOT NULL,
     resposta_ia      TEXT,
     sugestao_pratica TEXT,
     avaliacao        TINYINT      NULL,
     xp_ganho         INT NOT NULL DEFAULT 10,
     criado_em        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX ix_sessoes_criado_em (criado_em),
     CONSTRAINT fk_sessao_aluno  FOREIGN KEY (aluno_id)  REFERENCES alunos(id)  ON DELETE CASCADE  ON UPDATE CASCADE,
     CONSTRAINT fk_sessao_trilha FOREIGN KEY (trilha_id) REFERENCES trilhas(id) ON DELETE SET NULL ON UPDATE CASCADE
 );
