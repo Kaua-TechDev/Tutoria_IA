@@ -1,0 +1,7 @@
+# Ferramentas de desenvolvimento: testes e lint.
+-r requirements.txt
+pytest==9.2.0
+iniconfig==2.3.1
+pluggy==1.7.0
+Pygments==2.21.0
+ruff==0.17.3
