@@ -117,6 +117,7 @@ Todas são opcionais em desenvolvimento; o `.env.example` explica cada uma.
 | `OPENAI_MODEL` | Modelo usado (padrão: `gpt-4o-mini`) |
 | `OPENAI_TIMEOUT` | Segundos de espera pela API (padrão: 20) |
 | `OPENAI_MAX_RETRIES` | Novas tentativas em falhas temporárias (padrão: 2) |
+| `PORT` | Porta do servidor local (padrão: 5000) |
 | `RATELIMIT_STORAGE_URI` | Storage do rate limit (padrão: memória; use Redis com vários workers) |
 
 ---
